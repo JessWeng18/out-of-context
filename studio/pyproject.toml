@@ -1,0 +1,9 @@
+[project]
+name = "deep-agents-101-studio"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "deepagents",
+    "langchain-anthropic",
+    "langgraph-checkpoint-sqlite",
+]

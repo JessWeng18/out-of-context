@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Out of Context: Escape from Weng Manor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Permanent+Marker&family=Fredericka+the+Great&family=Cinzel:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=1794823510">
+<!-- Three.js for the title scene (title3d.js). Falls back to 2D if it can't load. -->
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<!-- The stage is a fixed 960x576 box (2x the 480x288 pixel canvas), scaled to fit the window. -->
+<!-- Hand-drawn "line boil": a turbulence displacement whose seed changes ~8x a second (js below) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="boil" x="-2%" y="-2%" width="104%" height="104%">
+    <feTurbulence id="boil-noise" type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="1"/>
+    <feDisplacementMap in="SourceGraphic" scale="4" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+<div id="stage">
+  <canvas id="view" width="480" height="288"></canvas>
+
+  <!-- Title screen layers (see js/title.js) -->
+  <div id="title" class="hidden">
+    <div id="title-black"></div>
+    <div id="title-main" class="title-layer on">
+      <div class="title-name">Out of Context</div>
+      <div class="title-name2">Escape from Weng Manor</div>
+    </div>
+    <div id="title-smoke" class="title-layer">Use your knowledge of LangChain's Deep Agents to escape</div>
+    <div id="title-keys" class="title-layer">
+      <div>Arrow keys / WASD to move &middot; Z to interact &middot; X to go back &middot; C for Deep Agents explained</div>
+      <div class="title-press">press Z to begin</div>
+    </div>
+  </div>
+
+  <!-- HUD strip (top) -->
+  <div id="hud-top" class="hidden">
+    <div class="hud-ctx hidden" id="hud-ctx">
+      <span class="hud-label">context</span>
+      <div id="ctx-bar"><div id="ctx-fill"></div></div>
+      <span id="ctx-pct">0%</span>
+    </div>
+    <div id="hud-thread">thread 1</div>
+    <div id="hud-path">/bedroom/</div>
+    <div id="hud-letters"></div>
+  </div>
+
+  <!-- HUD strip (bottom): tool belt -->
+  <div id="hud-bottom" class="hidden">
+    <div id="belt"></div>
+    <div id="hud-hood"><span class="hud-help">H: ask Polly</span>&nbsp;&nbsp;C: Deep Agents explained</div>
+  </div>
+
+  <!-- Tool call ticker -->
+  <div id="ticker"></div>
+
+  <!-- Info card that floats next to the nearest interactable -->
+  <div id="card" class="hidden"><div id="card-title"></div><div id="card-line"></div><div class="card-key">Z</div></div>
+
+  <!-- Dialogue box with speaker portrait slot -->
+  <div id="dialogue" class="hidden">
+    <canvas id="portrait" width="24" height="24"></canvas>
+    <div class="dlg-body">
+      <div id="dlg-name"></div>
+      <div id="dlg-text"></div>
+      <div id="dlg-options"></div>
+    </div>
+    <div id="dlg-more">&#9660;</div>
+  </div>
+
+  <!-- Large panel for long text (ls output, grep results, concept cards) -->
+  <div id="panel" class="hidden">
+    <div id="panel-title"></div>
+    <div id="panel-body"></div>
+    <div id="panel-foot">scroll or arrows &middot; Z / X close</div>
+  </div>
+
+  <!-- Full-screen fade layer -->
+  <div id="fade"></div>
+</div>
+
+<script src="js/assets.js?v=1794823510"></script>
+<script src="js/content.js?v=1794823510"></script>
+<script src="js/title.js?v=1794823510"></script>
+<script src="js/title3d.js?v=1794823510"></script>
+<script src="js/engine.js?v=1794823510"></script>
+<script src="js/doorfx.js?v=1794823510"></script>
+<script src="js/story.js?v=1794823510"></script>
+<script src="js/world3d.js?v=1794823510"></script>
+<script src="js/stairs3d.js?v=1794823510"></script>
+<script src="js/sfx.js?v=1794823510"></script>
+<!-- dev toolbar (temporary, for testing): skip the intro and jump between rooms -->
+<div id="devbar">
+  <button id="dev-skip">Skip intro</button>
+</div>
+<script>
+  // "Skip intro" jumps past the wake-up animation to Polly's introduction. It hides once there's nothing to skip,
+  // and it never keeps keyboard focus (so game keys always go to the game).
+  (() => {
+    const btn = document.getElementById("dev-skip"); btn.tabIndex = -1;
+    btn.onclick = () => { GAME.skipIntro(); btn.blur(); };
+    btn.addEventListener("keydown", (e) => { e.preventDefault(); btn.blur(); });
+    setInterval(() => { const S = GAME._S; btn.style.display = S.mode === "title" || (S.intro && S.intro.phase === "wake") ? "" : "none"; }, 200);
+  })();
+</script>
+<script>
+  // Re-seed the boil filter so lines shimmer like they're being redrawn.
+  (() => { const n = document.getElementById("boil-noise"); let seed = 1;
+    setInterval(() => { seed = (seed % 6) + 1; n.setAttribute("seed", seed); }, 125); })();
+</script>
+</body>
+</html>
