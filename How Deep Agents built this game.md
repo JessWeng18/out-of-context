@@ -16,7 +16,7 @@ The first version was built by a Deep Agent, set up in the `studio/` folder.
 
 The agent built the game one milestone at a time, and each milestone was reviewed before the next.
 
-## 2. The game teaches Deep Agents
+## 2. The game teaches you about the Deep Agents Harness
 
 The game itself does not run an agent. Polly's lines and puzzles are written by hand.
 
