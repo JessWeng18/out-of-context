@@ -1,5 +1,7 @@
 # Out of Context
 
+> **Early concept.** This is the original design doc, written before the game was built, so some details changed. In the finished game you play a person, Polly is the Deep Agent, and there is no trapped friend. The game itself doesn't run an agent. See the [README](README.md) and [How the Deep Agents Harness was used to build this game](How%20Deep%20Agents%20built%20this%20game.md) for the final version.
+
 A spooky escape game where you play as a deep agent. Each Deep Agents feature is one of your abilities, and you use them to get yourself and a trapped friend out of a haunted house.
 
 **Goal:** a visual, playful way to understand how Deep Agents works

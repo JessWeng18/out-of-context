@@ -1,4 +1,4 @@
-# How Deep Agents was used to build this game
+# How the Deep Agents Harness was used to build this game
 
 ## 1. A Deep Agent started the build
 
@@ -20,6 +20,6 @@ The agent built the game one milestone at a time, and each milestone was reviewe
 
 The game itself does not run an agent. Polly's lines and puzzles are written by hand.
 
-- Each puzzle is based on a real Deep Agents feature: the filesystem, context window, threads, memory, human in the loop, sandboxes, evals and tracing.
+- Each puzzle is based on a real feature of the Deep Agents Harness or LangSmith: the filesystem, context window, threads, memory, human in the loop, sandboxes, evals and tracing.
 - The green tool calls on screen show what a real Deep Agent would call at that moment.
 - The cards (press C) show real `deepagents` code for each feature.
