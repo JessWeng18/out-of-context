@@ -1,6 +1,6 @@
 # Out of Context: Escape from Weng Manor
 
-A short escape game about Deep Agents. You wake up in a locked manor with Polly, a Deep Agent bird, and find the 11-letter password to get out.
+A short escape game that teaches you about LangChain's Deep Agents Harness. You wake up in a locked manor with Polly, a Deep Agent bird, and find the 11-letter password to get out.
 
 ## Play
 
