@@ -1,8 +1,8 @@
-# How the Deep Agents Harness was used to build this game
+# How the Deep Agents Harness was used in this project
 
-## 1. A Deep Agent started the build
+## 1. A Deep Agent built the first prototype
 
-The first version was built by a Deep Agent, set up in the `studio/` folder.
+The first prototype was built by a Deep Agent, set up in the `studio/` folder.
 
 - **Library:** `deepagents`, with Claude (Opus 5.5) as the model.
 - **Filesystem:** the `studio/workspace/` folder. The agent wrote the game files there.
@@ -14,7 +14,7 @@ The first version was built by a Deep Agent, set up in the `studio/` folder.
 - **Subagent:** a playtester that tested each milestone and reported bugs.
 - **Checkpointer:** a SQLite checkpointer, so the build could stop and resume on the same thread.
 
-The agent built the game one milestone at a time, and each milestone was reviewed before the next.
+The agent built the prototype one milestone at a time, and each milestone was reviewed before the next. The current version was rebuilt and greatly expanded after that, without the studio agent.
 
 ## 2. The game teaches you about the Deep Agents Harness
 
