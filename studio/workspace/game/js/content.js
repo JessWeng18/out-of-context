@@ -83,7 +83,7 @@ CONTENT.objects = [
   { id: "bedroom_candle", sprite: "candle", x: 16, y: 12, dx: 4, light: { r: 36, color: "green" } },
   // gothic extras
   { id: "armour", sprite: "armour", x: 2, y: 8, solid: true, turn: Math.PI / 2, // faces into the room
-    card: { title: "Suit of armour", line: "Empty. You hope." },
+    card: { title: "Suit of armor", line: "Empty. You hope." },
     look: ["The visor creaks a little when you get close.", "Probably the draught."] },
   { id: "stag_skeleton", sprite: "skeleton", x: 15, y: 9, solid: true, turn: -Math.PI / 2, size: [2, 1], nudge: 0.55,
     card: { title: "Stag skeleton", line: "Someone's idea of decor." },
@@ -132,11 +132,11 @@ CONTENT.objects = [
   // ----- Nest room -----
   { id: "nest", sprite: "nest", x: 42, y: 8, solid: true, hit: [2, 12, 60, 26],
     card: { title: "The nest", line: "Polly's long-term memory: a store that outlasts every thread." },
-    look: ["I set up my nest here while you were asleep! Isn't it cosy?"] },
+    look: ["I set up my nest here while you were asleep! Isn't it cozy?"] },
   { id: "pedestal", sprite: "pedestal", hidden: true, x: 46, y: 9, solid: true, hit: [2, 8, 12, 16] },
   { id: "uv_light", sprite: "uv_light", hidden: true, x: 46, y: 9, dx: 2, dy: -2, light: { r: 22, color: "violet" },
     card: { title: "UV light", line: "Shows what eyes can't see." },
-    look: ["A little purple torch. Its light makes hidden things glow.", "Let's remember it's here. Something in this house is bound to need it."] },
+    look: ["A little purple flashlight. Its light makes hidden things glow.", "Let's remember it's here. Something in this house is bound to need it."] },
   { id: "nest_candle", sprite: "candle", x: 40, y: 6, dx: 4, light: { r: 38, color: "green" } },
   { id: "nest_candle_2", sprite: "candle", x: 48, y: 6, dx: 4, light: { r: 38, color: "green" } },
 
@@ -159,7 +159,7 @@ CONTENT.objects = [
     card: { title: "Foggy mirror", line: "Fogged up. Good for writing notes in." } },
   { id: "sink", sprite: "sink", x: 24, y: 25, solid: true, hit: [0, 0, 32, 20],
   },   // no label of its own, so the mirror above it is the thing you interact with
-  { id: "wall_shelf", sprite: "wall_shelf", x: 23, y: 24, mount: "wall" },
+  { id: "wall_shelf", sprite: "wall_shelf", x: 23, y: 24, mount: "wall", size: [1.25, 1], dx: -6 },   // stops short of the mirror frame
   { id: "evals_kit", sprite: "evals_kit", x: 23, y: 24, mount: "wall", dx: 9, dy: -4,
     card: { title: "Evals kit", line: "Tests things before you trust them." },
   },
@@ -168,7 +168,7 @@ CONTENT.objects = [
   { id: "bath_candle", sprite: "candle", x: 34, y: 25, dx: 4, light: { r: 36, color: "green" } },
 
   // ----- Attic -----
-  { id: "crate_1", sprite: "crate", x: 51, y: 5, solid: true },
+  { id: "crate_1", reach: 14, sprite: "crate", x: 51, y: 5, solid: true },
   { id: "crate_2", sprite: "crate", x: 52, y: 5, solid: true },
   { id: "crate_3", sprite: "crate", x: 51, y: 6, solid: true },
   { id: "barrel_1", sprite: "barrel", x: 59, y: 11, solid: true },
@@ -203,7 +203,7 @@ CONTENT.objects.push(
   { id: "jar_table_lib", sprite: "jar_table", x: 2, y: 32, solid: true, card: { title: "Specimen jar", line: "Something in there just moved." }, look: ["It's floating. It's... looking at you.", "Let's not open that."] },
   { id: "skull_table_lib", sprite: "skull_table", x: 15, y: 26, solid: true, card: { title: "Side table", line: "A skull, and a candle that never burns down." }, look: ["The candle is green. The skull is grinning."] },
   { id: "jar_table_bath", sprite: "jar_table", x: 23, y: 31, solid: true, light: { r: 28, color: "green" }, card: { title: "Specimen jar", line: "Bubbles rise when you lean close." }, look: ["The thing inside turns to face you.", "Nope."] },
-  { id: "jar_table_scr", sprite: "jar_table", x: 30, y: 9, solid: true, card: { title: "Specimen jar", line: "Labelled in a language you don't know." }, look: ["It twitched. You both pretend it didn't."] },
+  { id: "jar_table_scr", sprite: "jar_table", x: 30, y: 9, solid: true, card: { title: "Specimen jar", line: "Labeled in a language you don't know." }, look: ["It twitched. You both pretend it didn't."] },
   { id: "skull_table_cel", sprite: "skull_table", x: 59, y: 5, solid: true, card: { title: "Side table", line: "A skull with a chipped tooth." }, look: ["It has seen things."] },
   { id: "sconce_bed_2", sprite: "sconce", x: 12, y: 1, mount: "wall", light: { r: 30, color: "green" } },
   { id: "sconce_nest", sprite: "sconce", x: 41, y: 5, mount: "wall", light: { r: 30, color: "green" } },
@@ -215,8 +215,8 @@ CONTENT.objects.push(
 CONTENT.objects.push(
   { id: "hall_window", sprite: "gothic_window", x: 1, y: 17, side: "west", card: { title: "Gothic window", line: "Moonlight, and nothing but trees beyond." }, look: ["The glass is ice cold.", "Something moved between the trees. Probably a branch."] },
   { id: "hall_mirror_1", reach: 26, sprite: "ornate_mirror", x: 2, y: 15, mount: "wall", card: { title: "Ornate mirror", line: "Your reflection is a moment late." }, look: ["You blink. Your reflection blinks... slightly after."] },
-  { id: "hall_mirror_2", sprite: "ornate_mirror", x: 13, y: 15, dx: 9, mount: "wall" },
-  { id: "hall_mirror_3", sprite: "ornate_mirror", x: 29, y: 15, dx: 3, mount: "wall" },
+  { id: "hall_mirror_2", reach: 22, sprite: "ornate_mirror", x: 13, y: 15, dx: 9, mount: "wall" },
+  { id: "hall_mirror_3", reach: 22, sprite: "ornate_mirror", x: 29, y: 15, dx: 3, mount: "wall" },
   { id: "hall_side_table", sprite: "console_table", x: 2, y: 16, solid: true, size: [1.1, 0.6], variant: "books", light: { r: 22, color: "green" } },
   { id: "hall_couch_1", sprite: "couch", x: 3, y: 16, size: [2.4, 1], nudge: 0.15, solid: true, card: { title: "Velvet sofa", line: "Deep red, under a layer of dust." }, look: ["Nobody has sat here in a long time.", "There's still a dent in the cushion, though."] },
   { id: "hall_chair_1", sprite: "armchair", x: 5, y: 16, dx: 12, solid: true },

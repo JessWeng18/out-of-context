@@ -192,6 +192,34 @@ const SFX = (() => {
     knock(times = 3, at = 0) { if (!start()) return; for (let i = 0; i < times; i++) { const t = at + i * 0.62; tone({ at: t, dur: 0.16, freq: 150, to: 62, vol: 0.5 }); noise({ at: t, dur: 0.05, freq: 700, q: 1.5, vol: 0.22 }); } },
     // a muffled footfall on old floorboards: a soft heel thump, a duller body under it, and a faint scuff of sole and robe.
     // Left and right feet differ a little, and every step varies slightly so it never sounds like a metronome.
+    // a tiny bird: two or three quick rising whistles, a little different for each box
+    chirp(id = "") {
+      if (!start()) return;
+      let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      const base = 2600 + (h % 900), n = 2 + (h % 2);
+      for (let i = 0; i < n; i++) tone({ at: i * 0.11, dur: 0.07, freq: base, to: base * 1.45, type: "sine", vol: 0.12, attack: 0.004 });
+    },
+    // footsteps by floor: carpet is soft and dull, tile clicks, straw rustles, the attic boards creak now and then
+    floorStep(up = false) {
+      if (!start()) return;
+      let floor = "wood";
+      try { const a = GAME.state().area, r = CONTENT.map.rooms.find((x) => x.id === a); if (r) floor = r.floor; } catch (e) {}
+      const v = 0.85 + Math.random() * 0.3;
+      if (floor === "runner" || floor === "books") {
+        noise({ dur: 0.07, freq: 260, q: 0.8, type: "lowpass", vol: 1.0 * v, attack: 0.006 });
+        noise({ at: 0.02, dur: 0.06, freq: 700, q: 0.6, vol: 0.08 * v, attack: 0.01 });
+      } else if (floor === "tile") {
+        S.step(up, 0.7);
+        noise({ dur: 0.02, freq: 2600, q: 1.6, vol: 0.35 * v, attack: 0.0006 });
+        tone({ at: 0.004, dur: 0.06, freq: 1900 + Math.random() * 300, type: "sine", vol: 0.025 * v, attack: 0.001 });
+      } else if (floor === "straw") {
+        S.step(up, 0.6);
+        for (let i = 0; i < 4; i++) noise({ at: i * 0.018 + Math.random() * 0.01, dur: 0.02, freq: 3400 + Math.random() * 2000, q: 0.9, vol: 0.12 * v, attack: 0.001 });
+      } else if (floor === "attic") {
+        S.step(up, 1.05);
+        if (Math.random() < 0.12) S.creak(0.5, 0.03, 120 + Math.random() * 40);
+      } else S.step(up);
+    },
     step(up = false, k = 1) {
       if (!start()) return;
       const v = (0.85 + Math.random() * 0.3) * k, f = (up ? 1.12 : 1) * (0.92 + Math.random() * 0.16);
@@ -358,7 +386,7 @@ const SFX = (() => {
 
   // footsteps while walking
   let stepFlip = false;
-  setInterval(() => { const p = GAME._player; if (ac && GAME._S.mode === "play" && p && p.moving && !GAME._S.lock) { stepFlip = !stepFlip; S.step(stepFlip); } }, 310);
+  setInterval(() => { const p = GAME._player; if (ac && GAME._S.mode === "play" && p && p.moving && !GAME._S.lock) { stepFlip = !stepFlip; S.floorStep(stepFlip); } }, 310);
 
   // a small note in the bottom bar
   function showMute() { const el = document.getElementById("hud-sound"); if (el) el.textContent = muted ? "M: sound off" : "M: sound on"; }

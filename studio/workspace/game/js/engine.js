@@ -1167,8 +1167,9 @@ function fade(to, ms, cb) {
 // INTERACTION (placeholder behaviour for milestone 1)
 // ===========================================================================
 function interact(o) {
-  if (o.sprite === "jar_table" && typeof SFX !== "undefined") SFX.clip("glass", { vol: 0.8 });
-  if ((o.id === "land_mirror" || o.id === "riddle_t") && typeof SFX !== "undefined") SFX.mirror();   // the cracked mirror on the landing   // something stirs in the specimen jar
+  if (o.sprite === "jar_table" && typeof SFX !== "undefined") SFX.clip("glass", { vol: 0.8 });   // something stirs in the specimen jar
+  if ((o.id === "land_mirror" || o.id === "riddle_t") && typeof SFX !== "undefined") SFX.mirror();   // the cracked mirror on the landing
+  if (o.sprite === "birdbox" && o.id !== "birdbox_3" && typeof SFX !== "undefined" && SFX.chirp) SFX.chirp(o.id);   // each bird box has its own chirp
   if (GAME.onInteract && GAME.onInteract(o.id)) return; // story code can take over
   UI.say(o.look || ["Nothing special."]);
 }

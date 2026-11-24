@@ -949,6 +949,28 @@
     if (S2.lock || GAME.state().ui || S2.flags.clueS || S2.flags.cellarWait) return;
     cellarScene();
   }, 300);
+  // ------------------------------------------------------------ Polly, when you stand still for a while
+  const IDLE = {
+    any: ["Want me to ls this room? Sometimes there's more here than meets the eye.", "Still here? Me too. Shall we keep looking?", "If you're stuck, press H and I'll give you a hint.", "This house is very quiet. I don't love it."],
+    bedroom: () => (GAME._S.flags.clueJ ? [] : ["That photo on the mantel keeps catching my eye."]),
+    library: () => (GAME._S.flags.bookTaken ? [] : ["So many books. Only one of them is glowing."]),
+    bathroom: ["Is it me, or did the pipes just knock?"],
+    hallway: ["Every door off this hallway is a folder. Pick one."],
+    landing: () => (GAME._S.flags.traceShown ? [] : ["That eye on the plant hasn't blinked once."]),
+    nest: ["Home sweet nest. My memories are safe in here."],
+  };
+  let idleSince = performance.now(), idleLast = -Infinity, idleSaid = 0, idleAt = "";
+  setInterval(() => {
+    const S2 = GAME._S, st = GAME.state(), P2 = GAME._player, here = `${Math.round(P2.x)},${Math.round(P2.y)}`;
+    const busy = S2.mode !== "play" || S2.lock || st.ui || !S2.intro || S2.intro.phase !== "done";
+    if (busy || here !== idleAt) { idleSince = performance.now(); idleAt = here; return; }
+    const now = performance.now();
+    if (now - idleSince < 30000 || now - idleLast < 90000 || idleSaid >= 6) return;
+    const room = IDLE[st.area], pool = [...IDLE.any, ...(typeof room === "function" ? room() : room || [])];
+    idleLast = now; idleSince = now; idleSaid++;
+    GAME.say([pool[Math.floor(Math.random() * pool.length)]]);
+  }, 1000);
+
   // ------------------------------------------------------------ the nest: Polly's long-term memory (the store)
   async function nest() {
     const S2 = GAME._S, F = S2.flags;
@@ -957,7 +979,7 @@
     S2.lock = true;
     if (!F.nestExplained) {
       F.nestExplained = true;
-      await say(["I set up my nest here while you were asleep! Isn't it cosy?", "It's not just a bed, though. This is where I keep my long-term memory."]);
+      await say(["I set up my nest here while you were asleep! Isn't it cozy?", "It's not just a bed, though. This is where I keep my long-term memory."]);
       GAME.toolCall("ls", '"/memories/"');
       await new Promise((r) => GAME.panel('ls("/memories/")', listing, r));
       await say([
@@ -993,6 +1015,17 @@
       + li("Evals.", "Test every candidate the same way before you trust one.")
       + li("Tracing.", "A step-by-step record of what an agent did.")
       + "</ul>\nWant to build your own Polly? Learn Deep Agents at LangChain Academy:\n<b>academy.langchain.com</b>", r));
+    const seeTrace = await menu("View your own trace?", [["Yes, show me", true], ["No thanks", false]]);
+    if (seeTrace) {
+      const log = GAME._S.toolLog, threads = [...new Set(log.map((e) => e.thread))];
+      const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      let n = 0;
+      const body = `<span class="dim">${log.length} tool call${log.length === 1 ? "" : "s"} across ${threads.length} thread${threads.length > 1 ? "s" : ""}</span>\n\n`
+        + threads.map((th) => hl(`thread ${th}`) + "\n" + log.filter((e) => e.thread === th).map((e) => `${String(++n).padStart(3)}  ${esc(e.text.replace(/^> /, ""))}`).join("\n")).join("\n\n");
+      await say(["This is your trace. Every step we took, in order."]);
+      await new Promise((r) => GAME.panel("Your trace", body, r));
+      await say(["That's what LangSmith records for a real agent: every tool call, so you can look back and see exactly what happened."]);
+    }
     await say([{ who: "you", text: "(You step out into the night. Polly settles on your shoulder.)" }, "We made it. And I remember all of it.", "Thanks for playing! (Press Z to return to the title.)"]);
     location.reload();
   }
@@ -1019,7 +1052,7 @@
     GAME._objects.riddle_t.hidden = false;
     GAME._objects.land_mirror.card = { title: "Writing on the mirror", line: "A riddle, in pink, across the cracked glass." };
     GAME.unlockCard && GAME.unlockCard("tracing");
-    await say(["Footprints. Something came upstairs, read every file, ran some code... then went up to the attic. And somebody chained the door behind it.", "Each step is labelled, like a tool call. Whatever walked through here wasn't a person. It moved like an agent.", "And look: there's writing on that cracked mirror now."]);
+    await say(["Footprints. Something came upstairs, read every file, ran some code... then went up to the attic. And somebody chained the door behind it.", "Each step is labeled, like a tool call. Whatever walked through here wasn't a person. It moved like an agent.", "And look: there's writing on that cracked mirror now."]);
     S2.lock = false;
   }
   async function riddleT() {
@@ -1176,7 +1209,7 @@
   // Flavour lines for things that used to answer "Nothing special."
   const LOOKS = {
     hall_couch_2: ["Velvet, tufted, and very dramatic.", "There's a dent in the cushion where somebody used to sit. It never filled back in."],
-    curio_shelf_land: ["Bell jars. Each one holds something small that isn't moving anymore.", "Someone labelled them all. Tidily."],
+    curio_shelf_land: ["Bell jars. Each one holds something small that isn't moving anymore.", "Someone labeled them all. Tidily."],
     sword_rack: ["Three swords, hung up neatly.", "One of them has a nick in the blade. I'd rather not know from what."],
     land_curtains: ["Heavy curtains, pulled tight. There's a window behind them.", "...Something just tapped on the glass. Let's leave them shut."],
     bath_towels: ["Stiff with dust.", "Nobody has used these in a long, long time."],
@@ -1185,6 +1218,31 @@
     birdbox_1: ["A bird box! Something in there is rustling.", "Not mine. Mine's the big one in the middle."],
   };
   for (const [id, lines] of Object.entries(LOOKS)) if (GAME._objects[id] && !GAME._objects[id].look) GAME._objects[id].look = lines;
+  // Props that used to be scenery only: each gets a small card and a line or two.
+  const EXTRA_PROPS = {
+    nightstand_l: ["Nightstand", "A pile of unopened letters.", ["A pile of unopened letters.", "They're all addressed to the same name. It's been scribbled out."]],
+    bed_bookshelf: ["Bookshelf", "Bedtime reading.", ["\"Tidying Up for Agents.\" \"How to Never Ask Permission.\"", "Both look very well read."]],
+    hall_mirror_2: ["Hallway mirror", "Tarnished silver.", ["Your reflection is half a second late.", "...Let's keep moving."]],
+    hall_mirror_3: ["Hallway mirror", "Cloudy glass.", ["I'm not in the reflection.", "It's just the angle. I'm sure it's just the angle."]],
+    hall_mirror_r: ["Hallway mirror", "Fingerprints on the glass.", ["Fingerprints on the glass.", "On the inside."]],
+    hall_table_1: ["Console table", "Dried flowers in a vase.", ["Dried roses. They crumble if you breathe near them."]],
+    hall_table_2: ["Console table", "A guest book.", ["A guest book. Five names on the first page.", "Nobody has signed it since."]],
+    hall_chair_1: ["Armchair", "Red velvet, a little worn.", ["A red velvet armchair.", "The seat is worn smooth. Someone used to sit here a lot."]],
+    bath_pipes: ["Pipes", "They knock now and then.", ["The pipes knock every so often.", "It's the plumbing. Probably."]],
+    crate_1: ["Crate", "Stamped DELETED.", ["A crate stamped DELETED.", "There are dozens of them up here."]],
+    crate_2: ["Crate", "Stamped ARCHIVED.", ["This one says ARCHIVED. It's empty."]],
+    crate_3: ["Crate", "Full of tangled cables.", ["Tangled cables and burnt-out bulbs.", "Somebody was building something up here."]],
+    barrel_1: ["Barrel", "Lined with a newspaper.", ["It's lined with an old newspaper. No, wait, a new one.", "The headline says \"LangChain announces Series C.\"", "More funding for agents like me? I'll take it."]],   // easter egg
+    barrel_2: ["Barrel", "Scratched inside.", ["Empty. Something scratched the inside."]],
+    birdbox_2: ["Bird box", "Something tiny lives here.", ["A tiny bird peeks out, then hides again."]],
+    birdbox_3: ["Empty bird box", "Waiting for someone.", ["This one's empty. I'm saving it for the helpers I'll send out one day.", "Subagents. I'd hand each one a job, and it would go off with its own fresh context window and bring back just the answer."]],
+    birdbox_5: ["Bird box", "Someone's asleep inside.", ["Someone's asleep in there. Let's tiptoe."]],
+    birdbox_6: ["Bird box", "Something's humming inside.", ["Something in here is humming to itself.", "Badly. But with feeling."]],
+  };
+  for (const [id, [title, line, look]] of Object.entries(EXTRA_PROPS)) {
+    const o = GAME._objects[id]; if (!o || o.card) continue;
+    o.card = { title, line }; o.look = look;
+  }
 
   // The front door: always tells you how close you are.
   async function frontDoor() {

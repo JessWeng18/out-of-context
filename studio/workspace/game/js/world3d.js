@@ -820,7 +820,8 @@
       for (let i = 0; i <= 10; i++) { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 4, 8), M.iron); ring.position.set(-w / 2 + (i / 10) * w, railY - 0.02, d / 2 + 0.08); g.add(ring); }
       // the "person" behind the curtain: really a precarious stack of old chemical bottles in the tub
       const shape = new THREE.Group();
-      const glass = (col) => new THREE.MeshStandardMaterial({ color: col, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85, emissive: col, emissiveIntensity: 0.12 });
+      const bottleMats = [];                                                         // they glow a little once the curtain is back
+      const glass = (col) => { const m = new THREE.MeshStandardMaterial({ color: col, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85, emissive: col, emissiveIntensity: 0.12 }); bottleMats.push(m); return m; };
       const labelM = mat("#cbbf9a", { roughness: 0.9 }), cork = mat("#6a4a2a");
       const bottle = (x, y, z, r, h, col, neck = 0.35, tilt = 0) => {
         const bt = new THREE.Group(); bt.position.set(x, y, z); bt.rotation.z = tilt; shape.add(bt);
@@ -840,15 +841,22 @@
       bottle(-0.3, 0.86, 0.02, 0.06, 0.55, "#3a6a7a", 0.5, 0.18);                   // leaning bottles (arms)
       bottle(0.3, 0.86, -0.02, 0.06, 0.5, "#7a2a3a", 0.5, -0.15);
       bottle(0.17, 0.86, 0.14, 0.05, 0.22, "#5a7a2a", 0.5);
-      shape.position.set(-w * 0.1, 0, -0.05); g.add(shape);
+      // a quarter bigger than before, sunk a little into the tub so the top still sits about level with the curtain rail
+      const BS = 1.25, BY = 0.86 - 0.86 * BS - 0.26;
+      shape.scale.setScalar(BS); shape.position.set(-w * 0.1, BY, -0.05); g.add(shape);
+      g.userData.bottleMats = bottleMats;
+      // a soft halo round the stack, so the eye goes to the bottles first once the curtain is back
+      const haloTex = canvasTex(128, 128, (c, W2, H2) => { const gr = c.createRadialGradient(W2 / 2, H2 / 2, 0, W2 / 2, H2 / 2, W2 / 2); gr.addColorStop(0, "rgba(255,225,170,1)"); gr.addColorStop(0.45, "rgba(255,225,170,0.35)"); gr.addColorStop(1, "rgba(255,225,170,0)"); c.clearRect(0, 0, W2, H2); c.fillStyle = gr; c.fillRect(0, 0, W2, H2); });
+      const bHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      bHalo.scale.set(1.5, 2.3, 1); bHalo.position.set(-w * 0.1, 1.5, -0.3); g.add(bHalo); g.userData.bottleHalo = bHalo;
       // its shadow on the curtain: a person-shaped silhouette, only while the curtain is closed
       const sil = new THREE.Group(), dark = new THREE.MeshBasicMaterial({ color: "#07040a", transparent: true, opacity: 0.7, depthWrite: false });
-      const part = (geo, x, y, rz = 0) => { const m = new THREE.Mesh(geo, dark); m.position.set(x, y, 0); m.rotation.z = rz; m.scale.z = 0.15; sil.add(m); };
+      const part = (geo, x, y, rz = 0) => { const m = new THREE.Mesh(geo, dark); m.position.set(x, y, 0); m.rotation.z = rz; m.scale.z = 0.15; if (!rz) m.renderOrder = 3; sil.add(m); };   // body, neck and head always draw after the curtain, so the shadow never sinks into the fabric
       part(new THREE.CapsuleGeometry(0.24, 0.5, 4, 10), 0, 1.15);
       part(new THREE.SphereGeometry(0.17, 12, 8), 0.04, 1.88);
       part(new THREE.CylinderGeometry(0.06, 0.09, 0.2, 8), 0.02, 1.62);
       for (const sx of [-1, 1]) part(new THREE.CapsuleGeometry(0.055, 0.6, 3, 6), sx * 0.33, 1.08, sx * 0.16);
-      sil.position.set(-w * 0.1, 0, d / 2 + 0.16); g.add(sil);   // printed just in front of the curtain so it reads through the fabric
+      sil.scale.set(BS, BS, 1); sil.position.set(-w * 0.1, BY, d / 2 + 0.16); g.add(sil);   // printed just in front of the curtain so it reads through the fabric
       const back = new THREE.PointLight("#5fe08a", 2.2, 3, 1.6); back.position.set(0, 1.6, -d / 2 + 0.1); g.add(back);
       // something in the tub: slimy tentacles curling up out of the water and flopping over the rim
       const tentM = new THREE.MeshStandardMaterial({ color: "#6a3a7a", emissive: "#2a5a3a", emissiveIntensity: 0.35, roughness: 0.35, metalness: 0.1 });
@@ -1140,6 +1148,42 @@
     for (const [bw, bh, x, y] of [[fw, 0.06, 0, fw / 2], [fw, 0.06, 0, -fw / 2], [0.06, fw, fw / 2, 0], [0.06, fw, -fw / 2, 0]]) box(bw, bh, 0.05, M.darkWood, x, y, 0, g);
     for (const [sx, sy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) box(0.09, 0.09, 0.06, M.gold, sx * fw / 2, sy * fw / 2, 0.005, g);
     const pic = new THREE.Mesh(new THREE.PlaneGeometry(fw - 0.06, fw - 0.06), new THREE.MeshStandardMaterial({ map: o && o.icon === "chalkboard" ? chalkIconTex : portraitTex(2), roughness: 0.9 })); pic.position.z = 0.02; g.add(pic);
+  };
+  // Small set-dressing for props Polly now talks about, so what she describes is actually there.
+  const stampTex = (word) => canvasTex(256, 96, (c, W2, H2) => {
+    c.clearRect(0, 0, W2, H2); c.strokeStyle = c.fillStyle = "rgba(150,24,20,0.9)"; c.lineWidth = 6; c.strokeRect(8, 10, W2 - 16, H2 - 20);
+    c.font = "bold 50px Impact, 'Arial Black', sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(word, W2 / 2, H2 / 2 + 2);
+  });
+  const newsTex = canvasTex(256, 192, (c, W2, H2) => {
+    c.fillStyle = "#e9e2cf"; c.fillRect(0, 0, W2, H2);
+    c.fillStyle = "#1a1612"; c.font = "bold 18px Georgia, serif"; c.textAlign = "center"; c.fillText("THE DAILY THREAD", W2 / 2, 22);
+    c.fillRect(12, 30, W2 - 24, 2);
+    c.font = "bold 17px Georgia, serif"; c.fillText("LANGCHAIN ANNOUNCES", W2 / 2, 56); c.font = "bold 26px Georgia, serif"; c.fillText("SERIES C", W2 / 2, 86);
+    c.fillStyle = "rgba(26,22,18,0.55)"; for (let col = 0; col < 3; col++) for (let ln = 0; ln < 9; ln++) c.fillRect(14 + col * 78, 100 + ln * 9, 66 - (ln % 3) * 8, 4);
+  });
+  const DETAILS = {
+    nightstand_l: (g) => {                                                 // a pile of unopened letters
+      const paper = mat("#e6dcc2");
+      for (let i = 0; i < 6; i++) { const env = box(0.3, 0.016, 0.2, paper, -0.02 + (i % 2) * 0.04, 0.674 + i * 0.017, (i % 3) * 0.02 - 0.02, g); env.rotation.y = (i - 2.5) * 0.2; }
+      cyl(0.028, 0.028, 0.008, mat("#8a1414"), 0.0, 0.674 + 6 * 0.017, 0.0, g, 12);
+    },
+    hall_table_2: (g) => {                                                 // an open guest book with a pen
+      const H = 0.9;
+      box(0.42, 0.02, 0.28, mat("#4a1418"), 0, H, -0.08, g);
+      for (const sx of [-1, 1]) { const pg = box(0.19, 0.012, 0.25, mat("#eee6d2"), sx * 0.1, H + 0.016, -0.08, g); pg.rotation.z = sx * -0.06; }
+      const pen = cyl(0.006, 0.006, 0.2, mat("#141014"), 0.12, H + 0.03, -0.02, g, 6); pen.rotation.z = Math.PI / 2; pen.rotation.y = 0.5;
+    },
+    crate_1: (g, w) => { const s = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.7, w * 0.26), new THREE.MeshBasicMaterial({ map: stampTex("DELETED"), transparent: true })); s.rotation.x = -Math.PI / 2; s.rotation.z = 0.12; s.position.set(0, w * 0.8 + 0.003, 0); g.add(s); },
+    crate_2: (g, w) => { const s = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.7, w * 0.26), new THREE.MeshBasicMaterial({ map: stampTex("ARCHIVED"), transparent: true })); s.rotation.x = -Math.PI / 2; s.rotation.z = -0.1; s.position.set(0, w * 0.8 + 0.003, 0); g.add(s); },
+    crate_3: (g, w) => {                                                   // tangled cables and a dead bulb on the lid
+      const cable = mat("#141016");
+      for (let i = 0; i < 5; i++) { const t = new THREE.Mesh(new THREE.TorusGeometry(0.1 + i * 0.03, 0.01, 4, 16), cable); t.rotation.x = Math.PI / 2 + (i - 2) * 0.25; t.rotation.y = i * 0.7; t.position.set((i % 3 - 1) * 0.08, w * 0.8 + 0.03, (i % 2) * 0.06 - 0.03); g.add(t); }
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), mat("#9a9488", { transparent: true, opacity: 0.6 })); bulb.position.set(0.18, w * 0.8 + 0.05, 0.12); g.add(bulb);
+    },
+    barrel_1: (g, w) => {                                                  // a newspaper sticking up out of the barrel (easter egg)
+      const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.32), new THREE.MeshBasicMaterial({ map: newsTex, side: THREE.DoubleSide }));
+      sheet.position.set(0, w * 1.1 + 0.08, 0.04); sheet.rotation.x = -0.75; sheet.rotation.z = 0.1; g.add(sheet);
+    },
   };
   BUILD.ornate_mirror = (g) => ornateFrame(g, true);
   // --- more gothic frames, in varied shapes and sizes ---
@@ -1769,17 +1813,20 @@
     // grand gothic window: wide lancet head, moulded stone surround, five lights with
     // pointed heads, a rose window in the tracery, leaded moonlit glass, velvet drapes
     const H = 2.3, Wd = 2.6, top = H + 1.0, stone = mat("#4a4258"), stoneDk = mat("#2e2838");
-    const lancetPts = (hw, base, n = 14) => { const c = hw * 0.28, R = hw + c, out = [[-hw, base]]; const tE = Math.acos(c / R);
-      for (let k = 1; k <= n; k++) { const th = (k / n) * tE; out.push([-(R * Math.cos(th) - c), base + R * Math.sin(th)]); }
-      for (let k = n - 1; k >= 0; k--) { const th = (k / n) * tE; out.push([R * Math.cos(th) - c, base + R * Math.sin(th)]); }
+    const lancetPts = (hw, base, n = 14, rise = 1) => { const c = hw * 0.28, R = hw + c, out = [[-hw, base]]; const tE = Math.acos(c / R);
+      for (let k = 1; k <= n; k++) { const th = (k / n) * tE; out.push([-(R * Math.cos(th) - c), base + R * Math.sin(th) * rise]); }
+      for (let k = n - 1; k >= 0; k--) { const th = (k / n) * tE; out.push([R * Math.cos(th) - c, base + R * Math.sin(th) * rise]); }
       out.push([hw, base]); return out; };
-    const shapeOf = (hw, base, bottom) => { const sh = new THREE.Shape(); sh.moveTo(-hw, bottom); lancetPts(hw, base).forEach(([x, y]) => sh.lineTo(x, y)); sh.lineTo(hw, bottom); sh.closePath(); return sh; };
+    // The big arch is kept low enough that the glass peaks at `top` and the stone surround stays under the
+    // pelmet (it used to rise well past the pelmet and the top of the wall).
+    const RISE = (top - H) / (1.28 * (Wd / 2) * Math.sin(Math.acos(0.28 / 1.28)));
+    const shapeOf = (hw, base, bottom) => { const sh = new THREE.Shape(); sh.moveTo(-hw, bottom); lancetPts(hw, base, 14, RISE).forEach(([x, y]) => sh.lineTo(x, y)); sh.lineTo(hw, bottom); sh.closePath(); return sh; };
     // leaded glass with faint coloured panes
     const glassTex = canvasTex(256, 256, (c, W2, H2) => {
       const g2 = c.createLinearGradient(0, 0, 0, H2); g2.addColorStop(0, "#b8c4ec"); g2.addColorStop(1, "#7a86c0"); c.fillStyle = g2; c.fillRect(0, 0, W2, H2);
       const tints = ["rgba(150,90,200,0.25)", "rgba(90,160,140,0.2)", "rgba(200,90,110,0.18)", "rgba(0,0,0,0)"];
       for (let y = -16; y < H2 + 16; y += 22) for (let x = -16; x < W2 + 16; x += 22) { c.fillStyle = tints[((x + y) / 22 | 0) & 3]; c.beginPath(); c.moveTo(x, y - 11); c.lineTo(x + 11, y); c.lineTo(x, y + 11); c.lineTo(x - 11, y); c.closePath(); c.fill(); }
-      c.strokeStyle = "rgba(20,20,30,0.85)"; c.lineWidth = 2;
+      c.strokeStyle = "rgba(20,20,30,0.16)"; c.lineWidth = 2;   // faint leading: at 0.85 the tiny diamonds read as a mesh screen
       for (let k = -H2; k < W2 + H2; k += 22) { c.beginPath(); c.moveTo(k, 0); c.lineTo(k + H2, H2); c.stroke(); c.beginPath(); c.moveTo(k, H2); c.lineTo(k + H2, 0); c.stroke(); }
     });
     glassTex.repeat.set(1.6, 1.6);
@@ -1930,7 +1977,11 @@
     const tail = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.1, 5), mat("#c8b8a0")); tail.rotation.x = -Math.PI / 2; tail.position.z = -0.08; thing.add(tail);
     for (const sx of [-1, 1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.01, 5, 3), mat("#050305")); eye.position.set(sx * 0.018, 0.012, 0.055); thing.add(eye); }
     g.userData.jarThing = { thing, tail, phase: rnd() * 10 };
-    const l = new THREE.PointLight("#5fe08a", 0.8, 1.5, 2); l.position.y = 1.0; g.add(l);
+    // the jar's light hangs above the lid (down at jar height it mirrored in the table's rim as a bright dot
+    // below the jar); a soft halo sits on the jar itself so the glow is where the jar is
+    const l = new THREE.PointLight("#5fe08a", 0.8, 2.2, 2); l.position.y = 1.75; g.add(l);
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 10), new THREE.MeshBasicMaterial({ color: "#5fe08a", transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false }));
+    halo.position.y = 0.98; g.add(halo);
   };
   BUILD.glow_book = () => {}; // interaction spot only; the book itself sits on the shelf (see below)
   // iron-bound wooden trunk: planked body, slanted lid, bronze straps with domed
@@ -2301,6 +2352,7 @@
     const b = BUILD[o.id === "riddle_t" ? "riddle_scrawl" : key];
     if (b) b(g, w, d, o);
     else box(w * 0.8, 0.6, d * 0.8, mat("#4a3a5a"), 0, 0.3, 0, g);
+    if (DETAILS[o.id]) DETAILS[o.id](g, w, d, o);
     if (o.side === "east") {
       g.position.set(o.x - 0.02, 0, o.y + (o.size ? o.size[0] / 2 : 0.5)); g.rotation.y = -Math.PI / 2;
       if (o.size) g.translateZ(o.size[1] / 2);
@@ -2342,7 +2394,7 @@
     objMeshes.push({ o, group: g });
     if (o.light) {
       const lx = g.position.x + (key === "candelabra" ? Math.sin(g.rotation.y) * 0.3 : 0), lz = g.position.z + (o.mount === "wall" ? 0.4 : key === "candelabra" ? 0.3 : 0);
-      lightSources.push({ room: MAP.roomAt(o.x, o.mount === "wall" ? o.y + 1 : o.y), x: lx, y: o.mount === "wall" ? 1.6 : key === "candelabra" ? 1.9 : 0.6, z: lz, color: TINT[o.light.color] || TINT.warm, power: (o.light.r || 30) / 30, phase: rnd() * 10 });
+      lightSources.push({ room: MAP.roomAt(o.x, o.mount === "wall" ? o.y + 1 : o.y), x: lx, y: o.mount === "wall" ? 1.6 : key === "candelabra" ? 1.9 : o.sprite === "jar_table" ? 1.9 : 0.6, z: lz, color: TINT[o.light.color] || TINT.warm, power: (o.light.r || 30) / 30, phase: rnd() * 10 });
     }
   }
 
@@ -3023,6 +3075,8 @@
       if (!cu) continue;
       const target = S.flags.curtainOpen ? 1 : 0;
       cu.open += (target - cu.open) * Math.min(1, dt * 5);
+      if (group.userData.bottleMats) for (const bm of group.userData.bottleMats) bm.emissiveIntensity = 0.12 + cu.open * 0.55;
+      if (group.userData.bottleHalo) group.userData.bottleHalo.material.opacity = cu.open * (0.22 + 0.04 * Math.sin(t * 1.7));
       const squash = 1 - cu.open * 0.85;
       for (const [mesh, width] of [[cu.front, cu.w], [cu.side, 1]]) {
         mesh.scale.x = mesh === cu.front ? squash : 1;
