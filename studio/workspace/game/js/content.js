@@ -27,6 +27,7 @@ CONTENT.map = {
     { id: "library",      path: "/library/",      x: 2,  y: 25, w: 14, h: 9,  floor: "books" },
     { id: "bathroom",     path: "/bathroom/",     x: 23, y: 25, w: 12, h: 7, floor: "tile" },
     { id: "attic",        path: "/attic/",        x: 51, y: 5,  w: 9,  h: 8,  floor: "attic" },   // up a flight of stairs from the landing
+    { id: "storage_room", path: "/storage_room/", x: 45, y: 25, w: 9,  h: 7,  floor: "wood" },    // optional side room off the landing (skills)
   ],
 
   // Doorways: openings carved through walls (3 tiles wide so they're easy to walk through).
@@ -36,6 +37,7 @@ CONTENT.map = {
     { x: 43, y: 13, w: 3, h: 3 },  // nest         <-> hallway
     { x: 9,  y: 22, w: 3, h: 3 },  // library      <-> hallway
     { x: 27, y: 22, w: 3, h: 3 },  // bathroom     <-> hallway
+    { x: 48, y: 22, w: 3, h: 3 },  // storage room <-> landing
     { x: 54, y: 13, w: 3, h: 3, stairs: true },  // attic stairs (chained shut until the W key opens them)
   ],
 
@@ -139,6 +141,28 @@ CONTENT.objects = [
     look: ["A little purple flashlight. Its light makes hidden things glow.", "Let's remember it's here. Something in this house is bound to need it."] },
   { id: "nest_candle", sprite: "candle", x: 40, y: 6, dx: 4, light: { r: 38, color: "green" } },
   { id: "nest_candle_2", sprite: "candle", x: 48, y: 6, dx: 4, light: { r: 38, color: "green" } },
+
+  // ----- Storage room (optional; skills). Everything here is `extra: true` so it never reshuffles the rest of the house. -----
+  { id: "storage_candle_2", extra: true, sprite: "candle", x: 53, y: 25, dx: 4, light: { r: 38, color: "green" } },
+  { id: "storage_set", extra: true, sprite: "storage_set", x: 45, y: 25 },                                        // dust on the floor
+  { id: "web_store_l", extra: true, sprite: "cobweb", x: 45, y: 24, mount: "wall", cx: 45.0, side: "right" },
+  { id: "web_store_r", extra: true, sprite: "cobweb", x: 53, y: 24, mount: "wall", cx: 54.0, side: "left" },
+  { id: "scroll_rack", extra: true, sprite: "scroll_rack", x: 44, y: 28, side: "west", width: 5, solid: true,     // the whole left wall
+    card: { title: "Skill scrolls", line: "A wall of rolled-up scrolls, each with a name tag." } },
+  { id: "vial_shelf", extra: true, sprite: "vial_shelf", x: 46, y: 24, mount: "wall", width: 2.3, light: { r: 38, color: "green" }, lightDx: -1.02, lightY: 2.4,   // the light sits on the candle at the left end of the top shelf
+    card: { title: "Vial rack", line: "Three identical vials on a little rack." } },
+  { id: "storage_shelves", extra: true, sprite: "storage_shelves", x: 54, y: 28, side: "east", width: 4.4, solid: true,
+    card: { title: "Storage shelves", line: "Rows of jars, vials and small boxes." },
+    look: ["More vials and boxes, floor to ceiling.", "Nobody has dusted in here for a very long time."] },
+  { id: "spooky_basket", extra: true, sprite: "spooky_basket", x: 45, y: 31, size: [1, 1], solid: true,
+    card: { title: "Basket", line: "A wicker basket of odds and ends." },
+    look: ["A skull, some bones, a crystal, a feather...", "It's either a lost-and-found or somebody's shopping."] },
+  { id: "storage_cabinet", extra: true, sprite: "cabinet", x: 54, y: 30.9, side: "east", width: 1.1, solid: true,
+    card: { title: "Cabinet", line: "Tall, wooden, and shut tight." },
+    look: ["A tall wooden cabinet. Both doors are shut tight.", "I had a peek through the gap. Old coats and spare candles. Nothing of use inside."] },
+  { id: "witch_brooms", extra: true, sprite: "witch_brooms", x: 52, y: 25, solid: true,
+    card: { title: "Brooms", line: "Two twig brooms, leaning in the corner." },
+    look: ["Oh, brooms! For cleaning.", "...Or flying?"] },
 
   // ----- Library -----
   { id: "shelf_1", sprite: "bookshelf", x: 3, y: 25, dy: -6, solid: true, hit: [0, 8, 64, 28],
@@ -477,6 +501,12 @@ CONTENT.cards = {
     code: "agent = create_deep_agent(\n    model=MODEL,\n    backend=sandbox,\n)",
     note: "the agent's execute tool now runs inside the sandbox",
   },
+  skills: {
+    title: "Skills",
+    body: "A skill is a folder with a <code class=\"tool\">SKILL.md</code> file: a name, a short description, and step-by-step instructions. A deep agent always sees every skill's name and description, and reads the full instructions only when a task calls for that skill. So an agent can have dozens of skills and still keep its context window clear.",
+    code: "agent = create_deep_agent(\n    model=MODEL,\n    skills=[\"/skills/\"],\n)",
+    note: "each skill has its own folder, like /skills/see-color/SKILL.md",
+  },
   tracing: {
     title: "Tracing (LangSmith)",
     body: "The Watcher has seen every step taken in this house, in order. LangSmith tracing does that for agents: every model call and tool call is recorded, so you can look back and see exactly what happened, and why.",
@@ -489,7 +519,7 @@ CONTENT.cards = {
 // are in is gold, and the attic stays "???" until its door is open. Built from CONTENT.map so it never drifts.
 CONTENT.fsMap = () => {
   const S = GAME._S, here = GAME.state().area, rooms = CONTENT.map.rooms;
-  const files = { bedroom: "friends_photo.png", library: "bookshelf_1.txt", bathroom: "mirror.txt", scratch_room: "chalkboard.txt", nest: "nest.txt" };
+  const files = { bedroom: "friends_photo.png", library: "bookshelf_1.txt", bathroom: "mirror.txt", scratch_room: "chalkboard.txt", nest: "nest.txt", storage_room: "skills/" };
   let out = '<svg class="fsmap" viewBox="0 0 63 41" xmlns="http://www.w3.org/2000/svg">';
   out += '<text x="2" y="1.4" class="fl">GROUND FLOOR</text><text x="37" y="4.4" class="fl">UPSTAIRS</text>';
   for (const d of CONTENT.map.doors) out += `<rect x="${d.x + 0.9}" y="${d.y}" width="${d.w - 1.8}" height="${d.h}" class="dr"/>`;

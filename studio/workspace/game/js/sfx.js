@@ -22,15 +22,17 @@ const SFX = (() => {
     const a = new Audio("audio/" + CLIPS[name] + AV); a.volume = vol; a.loop = loop; a.muted = muted; a._vol = vol;
     live.add(a); a.addEventListener("ended", () => live.delete(a));
     const go = () => {
+      if (a._dead) return;                                   // stopped before its delayed start: never play
       if (from) { try { a.currentTime = from; } catch (e) {} a.addEventListener("loadedmetadata", () => { if (a.currentTime < from - 0.05) a.currentTime = from; }, { once: true }); }
       const p = a.play(); if (p && p.catch) p.catch(() => live.delete(a));
       if (to) { let cut = false; a.addEventListener("timeupdate", () => { if (!cut && a.currentTime >= to - 0.3) { cut = true; fadeClip(a, 0.2); } }); }
     };
-    if (at > 0) setTimeout(go, at * 1000); else go();
+    if (at > 0) a._timer = setTimeout(go, at * 1000); else go();
     return a;
   }
   function fadeClip(a, secs = 1.5) {
-    if (!a) return; const v0 = a.volume, t0 = performance.now();
+    if (!a) return; a._dead = true; clearTimeout(a._timer);    // also cancels a clip that hasn't started yet
+    const v0 = a.volume, t0 = performance.now();
     const iv = setInterval(() => { const k = (performance.now() - t0) / (secs * 1000); if (k >= 1) { clearInterval(iv); a.pause(); live.delete(a); } else a.volume = v0 * (1 - k); }, 40);
   }
 
@@ -320,7 +322,7 @@ const SFX = (() => {
   S.forest = (on) => { if (on && !forest) forest = [clip("walk", { vol: 0.8, at: 1.2 }), clip("twigs", { vol: 0.7, at: 1.2, from: 0.4 })]; else if (!on && forest) { forest.forEach((a) => fadeClip(a, 0.7)); forest = null; } };
   S.castle = (on, fadeSecs = 1.8) => { if (on && !castle) { castle = clip("castle", { vol: 0.6, loop: true }); S.wind(false); S.forest(false); } else if (!on && castle) { fadeClip(castle, fadeSecs); castle = null; } };
   // once the trees have parted and the manor is in view, its own night sounds take over from the wind
-  let gateClip = null;
+  let gateClip = null, lateCaw = null;
   setInterval(() => {
     const T = TITLE.state;
     if (forest && T.stage === 1 && (T.bclear || 0) > 0.12) S.forest(false);                 // the walking stops as the last of the branches is swept aside
@@ -328,13 +330,14 @@ const SFX = (() => {
     if ((T.stage === 3 && !T.busy) || GAME._S.mode === "play") {                              // inside the game: nothing from the title carries over
       if (gateClip) { fadeClip(gateClip, 0.2); gateClip = null; }
       S.castle(false, 0.3); S.forest(false);
+      if (lateCaw) { fadeClip(lateCaw, 0.1); lateCaw = null; }
     }
   }, 50);
 
   wrap(TITLE, "advance", () => {
     const st = TITLE.state;
     if (st.busy) return;
-    if (st.stage === 0) { S.wind(true); S.caw(1, 0.05); S.forest(true); S.caw(1, 3.4); }   // footsteps in the wood, twigs going, a crow somewhere
+    if (st.stage === 0) { S.wind(true); S.caw(1, 0.05); S.forest(true); lateCaw = S.caw(1, 3.4); }   // footsteps in the wood, twigs going, a crow somewhere
     else if (st.stage === 1) S.blip();
     else if (st.stage === 2) { gateClip = clip("gate", { vol: 0.9, to: 3.0 }); /* first part only, about three seconds */ S.castle(false, 1.8); setTimeout(() => S.wind(false), 2200); }
   });

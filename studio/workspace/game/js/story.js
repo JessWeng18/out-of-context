@@ -971,6 +971,188 @@
     GAME.say([pool[Math.floor(Math.random() * pool.length)]]);
   }, 1000);
 
+  // ------------------------------------------------------------ the storage room: skills (optional)
+  // A skill is a name, a short description and step-by-step instructions. Polly sees only the name and
+  // description of each scroll; the instructions are loaded (and cost context) only for the ones she picks.
+  const SKILLS = [
+    { id: "see-color", flag: "seeColor", desc: "Tell colors apart in a dim room. Use when everything looks gray.",
+      steps: ["Hold the prism up to a candle.", "Look at each item through it.", "Name the color out loud."] },
+    { id: "brew-tea", flag: "brewTea", desc: "Make a calming cup of nettle tea. Use when someone needs to settle their nerves.",
+      steps: ["Boil water in the copper pot.", "Add three nettle leaves.", "Pour, and blow on it first."] },
+    { id: "sort-items", flag: "sortItems", desc: "Put a jumbled set of items back in order. Use when asked to sort or tidy.",
+      steps: ["Line the items up in a row.", "Rainbow order: red, then green, then purple.", "Check each against its neighbor."] },
+  ];
+  const SKILL_COST = 6;
+  // One overlay at a time; while it is open it takes the keyboard.
+  let frameKeys = null;
+  addEventListener("keydown", (e) => { if (!frameKeys) return; e.stopImmediatePropagation(); e.preventDefault(); if (!e.repeat) frameKeys(e.key.toLowerCase()); }, true);
+  function openFrame(cls, html) {
+    const el = document.createElement("div"); el.id = "skillframe"; el.className = cls; el.innerHTML = html;
+    document.getElementById("stage").appendChild(el); return el;
+  }
+  // The scroll frame: three scrolls side by side, tags only. Polly suggests which fit the job (an agent picks
+  // skills by their descriptions); choosing a scroll loads its instructions, choosing it again puts it back.
+  function scrollFrame() {
+    return new Promise((res) => {
+      const F = GAME._S.flags, before = SKILLS.filter((k) => F["skill_" + k.flag]).map((k) => k.id);
+      const el = openFrame("scrolls", `<div class="sf-title">ls("/storage_room/skills/")</div>
+        <div class="sf-sub">Polly reads only the tag on each scroll: a name and a short description.</div>
+        <div class="sf-row"></div><div class="sf-msg"></div>
+        <div class="sf-foot">← → choose · Z load / put back · Enter done</div>`);
+      const row = el.querySelector(".sf-row"), msg = el.querySelector(".sf-msg"), sub = el.querySelector(".sf-sub");
+      let sel = 0, picks = false;
+      const isLoaded = (k) => !!F["skill_" + k.flag];
+      const NEEDED = ["see-color", "sort-items"];
+      const draw = () => {
+        row.innerHTML = SKILLS.map((k, i) => {
+          const on = isLoaded(k), pick = picks && NEEDED.includes(k.id) && !on;
+          return `<div class="scroll${i === sel ? " sel" : ""}${on ? " loaded" : ""}" data-i="${i}">
+            <div class="sc-roll"></div>
+            <div class="sc-body">${pick ? '<div class="sc-pick">Polly\'s pick</div>' : ""}<div class="sc-name">${k.id}</div><div class="sc-desc">${k.desc}</div>
+            ${on ? `<ol class="sc-steps">${k.steps.map((t) => `<li>${t}</li>`).join("")}</ol><div class="sc-badge">loaded · +${SKILL_COST}% context</div>` : `<div class="sc-closed">instructions not loaded</div>`}</div>
+            <div class="sc-roll"></div></div>`;
+        }).join("");
+        const n = SKILLS.filter(isLoaded).length;
+        msg.textContent = n ? `${n} of 3 loaded. Each loaded scroll takes up room in Polly's context.` : "Nothing loaded yet. Reading the tags costs almost no context.";
+      };
+      // Polly reads the tags and says which ones fit, the way an agent chooses a skill from its description
+      const suggest = () => {
+        if (!document.body.contains(el)) return;
+        const have = NEEDED.filter((id) => F["skill_" + SKILLS.find((k) => k.id === id).flag]);
+        const text = have.length === 2 ? "We've loaded the two that fit the job. The rest can stay rolled up."
+          : F.vialsSeen ? "Going by the descriptions: <b>see-color</b> is for when everything looks gray, and <b>sort-items</b> puts things back in order. Those two fit our job. Tea can wait."
+          : "Going by the descriptions: <b>see-color</b> is for when everything looks gray. That's this room! And <b>sort-items</b> could tidy something up.";
+        let face = ""; try { face = document.getElementById("portrait").toDataURL(); } catch (e) {}
+        sub.className = "sf-sub sf-polly"; sub.innerHTML = `${face ? `<img src="${face}" alt="">` : ""}<div><span class="sp-name">Polly</span> ${text}</div>`;
+        picks = true; draw();
+        if (typeof SFX !== "undefined") SFX.blip();
+      };
+      const toggle = () => {
+        const k = SKILLS[sel];
+        if (isLoaded(k)) {                                             // put it back: its instructions leave Polly's context
+          F["skill_" + k.flag] = false; if (k.flag !== "seeColor") F[k.flag] = false;
+          GAME.setCtx(GAME.state().ctx - SKILL_COST);
+          if (typeof SFX !== "undefined") SFX.blip();
+          draw(); msg.textContent = `${k.id} put back. That frees up ${SKILL_COST}% of Polly's context.`; return;
+        }
+        F["skill_" + k.flag] = true; if (k.flag !== "seeColor") F[k.flag] = true;
+        GAME.toolCall("read_file", `"/storage_room/skills/${k.id}/SKILL.md"`);
+        GAME.setCtx(GAME.state().ctx + SKILL_COST);
+        if (typeof SFX !== "undefined") SFX.select();
+        draw();
+      };
+      const close = () => {
+        frameKeys = null; el.remove();
+        const after = SKILLS.filter(isLoaded).map((k) => k.id);
+        res({ added: after.filter((id) => !before.includes(id)), removed: before.filter((id) => !after.includes(id)) });
+      };
+      row.addEventListener("click", (e) => { const c = e.target.closest(".scroll"); if (!c) return; sel = +c.dataset.i; toggle(); });
+      frameKeys = (k) => {
+        if (k === "arrowleft" || k === "a") { sel = (sel + SKILLS.length - 1) % SKILLS.length; draw(); if (typeof SFX !== "undefined") SFX.blip(); }
+        else if (k === "arrowright" || k === "d") { sel = (sel + 1) % SKILLS.length; draw(); if (typeof SFX !== "undefined") SFX.blip(); }
+        else if (k === "z" || k === " ") toggle();
+        else if (k === "enter" || k === "x" || k === "escape") close();   // Enter means "done", never load or put back
+      };
+      draw();
+      setTimeout(suggest, 1400);                                       // a beat to take in the three tags, then Polly weighs in
+    });
+  }
+  // The sorting frame: three identical vials; put them in the order the sort-items skill gives.
+  function sortFrame() {
+    return new Promise((res) => {
+      const ORDER = ["red", "green", "purple"], HEX = { red: "#d8483c", green: "#3fb862", purple: "#9258e0" };
+      let pool = ["green", "purple", "red"], placed = [], sel = 0;
+      const el = openFrame("sort", `<div class="sf-title">Put the vials back in order</div>
+        <div class="sf-sub">From the loaded skill <b>sort-items</b>: order them like a rainbow: red first, then green, then purple.</div>
+        <div class="sf-slots"></div><div class="sf-row vials"></div><div class="sf-msg"></div>
+        <div class="sf-foot">\u2190 \u2192 choose \u00b7 Z place next \u00b7 X close</div>`);
+      const slots = el.querySelector(".sf-slots"), row = el.querySelector(".sf-row"), msg = el.querySelector(".sf-msg");
+      const vial = (id, extra = "") => `<div class="vial ${extra}" data-id="${id}"><div class="v-cork"></div><div class="v-glass" style="background:${HEX[id]};box-shadow:0 0 14px ${HEX[id]}88"></div></div>`;
+      const draw = () => {
+        slots.innerHTML = [0, 1, 2].map((i) => `<div class="slot"><div class="slot-n">${["1st", "2nd", "3rd"][i]}</div>${placed[i] ? vial(placed[i]) : '<div class="slot-empty"></div>'}</div>`).join("");
+        row.innerHTML = pool.map((id, i) => vial(id, i === sel ? "sel" : "")).join("");
+      };
+      const place = () => {
+        const id = pool[sel]; if (!id) return;
+        if (id !== ORDER[placed.length]) {
+          if (typeof SFX !== "undefined") SFX.wrong();
+          el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
+          msg.textContent = "That one doesn't go next. Check the order in the skill, and start again."; pool = ["green", "purple", "red"]; placed = []; sel = 0; draw(); return;
+        }
+        placed.push(id); pool.splice(sel, 1); sel = 0; msg.textContent = "";
+        if (typeof SFX !== "undefined") SFX.select();
+        draw();
+        if (!pool.length) setTimeout(() => { frameKeys = null; el.remove(); res(true); }, 700);
+      };
+      row.addEventListener("click", (e) => { const c = e.target.closest(".vial"); if (!c) return; sel = pool.indexOf(c.dataset.id); place(); });
+      frameKeys = (k) => {
+        if (!pool.length) return;
+        if (k === "arrowleft" || k === "a") { sel = (sel + pool.length - 1) % pool.length; draw(); }
+        else if (k === "arrowright" || k === "d") { sel = (sel + 1) % pool.length; draw(); }
+        else if (k === "z" || k === "enter" || k === " ") place();
+        else if (k === "x" || k === "escape") { frameKeys = null; el.remove(); res(false); }
+      };
+      draw();
+    });
+  }
+  async function skillScrolls() {
+    const S2 = GAME._S, F = S2.flags;
+    S2.lock = true;
+    if (!F.skillsIntro) {
+      F.skillsIntro = true;
+      await say([
+        "Scrolls! There must be forty of them on this wall.",
+        "These are skills. Each scroll holds step-by-step instructions for one job.",
+        "If I read all forty, my context would be full before we'd done anything. So I only read the tags: a name and a short description.",
+        "When a job needs one, I load just that scroll. Three of these look like they might help.",
+      ]);
+    }
+    GAME.toolCall("ls", '"/storage_room/skills/"');
+    const { added, removed } = await scrollFrame();
+    F.seeColor = !!F.skill_seeColor;
+    if (added.includes("brew-tea")) await say(["Tea wasn't what we needed. Now it's just taking up room in my context."]);
+    else if (removed.length && !added.length) await say(["Rolled back up. That's a little more room in my context."]);
+    if (added.length && F.seeColor && F.sortItems && !F.skillsDone) await say(["That's the two we need. Back to the vial rack!"]);
+    S2.lock = false;
+  }
+  async function vialRack() {
+    const S2 = GAME._S, F = S2.flags;
+    if (F.skillsDone) { await say(["Red, green, purple. All in order."]); return; }
+    S2.lock = true;
+    if (!F.vialsSeen) {
+      F.vialsSeen = true;
+      await say(["Three vials on a little rack, and a note: \"Put these back in order.\"", "They're exactly the same shape. So the only way to tell them apart is by color."]);
+    }
+    if (!F.seeColor && !F.sortItems) await say(["But everything in here is gray to me, and I don't know what order they go in.", "I bet there's a skill for this on that wall of scrolls."]);
+    else if (!F.seeColor) await say(["I know the order now. But they're all the same gray to me.", "There must be a scroll for that."]);
+    else if (!F.sortItems) await say(["With see-color I can tell them apart: one red, one green, one purple. But what order do they go in?", "There must be a scroll for that."]);
+    else {
+      const done = await sortFrame();
+      if (done) {
+        F.skillsDone = true;
+        if (typeof SFX !== "undefined") SFX.chime();
+        GAME.unlockCard("skills");
+        await say([
+          "Red, green, purple. Done! And look, the color's come back.",
+          "Forty scrolls on that wall, and I only loaded the ones I needed. That's how skills keep my context clear.",
+          "(Press C to read about skills.)",
+        ]);
+      }
+    }
+    S2.lock = false;
+  }
+  // the vial rack can be used from anywhere along the shelf, not just its left end
+  { const vs = GAME._objects.vial_shelf; if (vs) vs.zone = { x: 45.4 * 16, y: 24 * 16, w: 2.3 * 16, h: 1.7 * 16 }; }
+  // First time in the storage room: Polly notices the color is gone.
+  setInterval(async () => {
+    const S2 = GAME._S;
+    if (S2.flags.storageSeen || S2.lock || GAME.state().ui || GAME.state().area !== "storage_room") return;
+    S2.flags.storageSeen = true; S2.lock = true;
+    await wait(900);
+    await say(["Huh. Everything in here looks gray to me."]);
+    S2.lock = false;
+  }, 350);
+
   // ------------------------------------------------------------ the nest: Polly's long-term memory (the store)
   async function nest() {
     const S2 = GAME._S, F = S2.flags;
@@ -1014,6 +1196,7 @@
       + li("Sandboxes.", "Run code in a sealed box, where it can only touch what's inside.")
       + li("Evals.", "Test every candidate the same way before you trust one.")
       + li("Tracing.", "A step-by-step record of what an agent did.")
+      + (GAME._S.flags.skillsDone ? li("Skills.", "Read every description, load only the instructions you need.") : "")
       + "</ul>\nWant to build your own Polly? Learn Deep Agents at LangChain Academy:\n<b>academy.langchain.com</b>", r));
     const seeTrace = await menu("View your own trace?", [["Yes, show me", true], ["No thanks", false]]);
     if (seeTrace) {
@@ -1197,7 +1380,7 @@
   GAME._powerCut = powerCutScene;   // (for testing the cutscene on its own)
 
   // Which rooms are finished: the path turns gold with a tick, and world3d greys out the doors that lead there.
-  GAME.roomDone = (id) => { const F = GAME._S.flags; return !!({ bedroom: F.clueJ, scratch_room: F.clueW, library: F.clueBUILT, bathroom: F.clueHI, landing: F.clueT && F.sandboxTaken && F.cellarOpen, attic: F.clueS })[id]; };
+  GAME.roomDone = (id) => { const F = GAME._S.flags; return !!({ bedroom: F.clueJ, scratch_room: F.clueW, library: F.clueBUILT, bathroom: F.clueHI, landing: F.clueT && F.sandboxTaken && F.cellarOpen, attic: F.clueS, storage_room: F.skillsDone })[id]; };
   setInterval(() => {
     const el = document.getElementById("hud-path"), here = GAME.state().area, room = CONTENT.map.rooms.find((r) => r.id === here);
     if (!el || !room) return;
@@ -1285,6 +1468,8 @@
     if (id === "glow_book") { glowBook(); return true; }
     if (id === "lib_fireplace") { libFire(); return true; }
     if (id === "nest") { nest(); return true; }
+    if (id === "scroll_rack") { skillScrolls(); return true; }
+    if (id === "vial_shelf") { vialRack(); return true; }
     if (id === "sleeping_snake") { if (typeof SFX !== "undefined") SFX.snake(); python(); return true; }
     if (id === "old_trunk") { trunk(); return true; }
     if (id === "evals_kit") { evalsKit(); return true; }

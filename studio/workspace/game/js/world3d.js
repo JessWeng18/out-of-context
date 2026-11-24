@@ -72,8 +72,11 @@
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const r = MAP.roomAt(x + dx, y + dy); if (r >= 0) out.add(r); }
     return [...out];
   }
-  let seed = 11;
-  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  // Two random streams. Everything in the original house draws from the first, in a fixed order, so its
+  // randomized details (book spines, grain, cobwebs) never change. Anything added later is marked `extra`
+  // and draws from the second, so adding it cannot reshuffle the rest of the house.
+  let seed = 11, seedX = 7919, useX = false;
+  const rnd = () => (useX ? (seedX = (seedX * 1664525 + 1013904223) >>> 0) : (seed = (seed * 1664525 + 1013904223) >>> 0)) / 4294967296;
 
   // --------------------------------------------------------------- floors
   const FLOOR = {
@@ -286,6 +289,34 @@
       hallway: damask("#3a141e", "rgba(110,36,52,0.75)"), landing: damask("#3a141e", "rgba(110,36,52,0.75)"),
       bedroom: damask("#2a1a3a", "rgba(80,52,108,0.8)"), library: damask("#1c2a22", "rgba(52,84,64,0.8)"),
     };
+    // the storage room: old brick under a film of dust, the courses half scrubbed away
+    useX = true;
+    PAPER.storage_room = canvasTex(256, 400, (c, W2, H2) => {
+      c.fillStyle = "#2f2a38"; c.fillRect(0, 0, W2, H2);
+      const BW = 64, BH = 25;
+      for (let row = 0; row * BH < H2; row++) for (let col = -1; col < 5; col++) {
+        const x = col * BW + (row % 2 ? BW / 2 : 0), y = row * BH;
+        c.fillStyle = ["rgba(66,56,80,0.6)", "rgba(38,33,48,0.6)", "rgba(74,64,86,0.55)", "rgba(50,43,62,0.6)"][Math.floor(rnd() * 4)];
+        c.fillRect(x + 1, y + 1, BW - 2, BH - 2);
+        if (rnd() < 0.62) { c.fillStyle = `rgba(16,12,22,${0.18 + rnd() * 0.22})`; c.fillRect(x, y + BH - 1.5, BW * (0.4 + rnd() * 0.6), 1.5); }     // mortar, in broken stretches
+        if (rnd() < 0.5) { c.fillStyle = `rgba(16,12,22,${0.15 + rnd() * 0.2})`; c.fillRect(x, y + 2, 1.5, BH * (0.4 + rnd() * 0.5)); }
+      }
+      for (let i = 0; i < 9; i++) {                                    // smears where the brick has been rubbed back to pale dust
+        const px = 46 + rnd() * 164, py = 30 + rnd() * (H2 - 60), r = 22 + rnd() * 34;
+        const gr = c.createRadialGradient(px, py, 4, px, py, r); gr.addColorStop(0, `rgba(118,110,104,${0.07 + rnd() * 0.07})`); gr.addColorStop(1, "rgba(118,110,104,0)");
+        c.fillStyle = gr; c.fillRect(px - r, py - r, r * 2, r * 2);
+      }
+      c.lineCap = "round";
+      for (let i = 0; i < 7; i++) {                                    // long sweeping wipe marks
+        const px = 40 + rnd() * 170, py = 40 + rnd() * (H2 - 80);
+        c.strokeStyle = `rgba(150,142,130,${0.04 + rnd() * 0.05})`; c.lineWidth = 8 + rnd() * 14;
+        c.beginPath(); c.moveTo(px - 30, py + 14); c.quadraticCurveTo(px, py - 16 - rnd() * 12, px + 34, py + 10); c.stroke();
+      }
+      const dust = c.createLinearGradient(0, H2 * 0.5, 0, H2); dust.addColorStop(0, "rgba(140,132,118,0)"); dust.addColorStop(1, "rgba(140,132,118,0.14)");
+      c.fillStyle = dust; c.fillRect(0, 0, W2, H2);
+      for (let i = 0; i < 260; i++) { c.fillStyle = `rgba(${rnd() < 0.5 ? "0,0,0" : "190,182,170"},${rnd() * 0.07})`; c.fillRect(rnd() * W2, rnd() * H2, 1 + rnd() * 3, 1 + rnd() * 2); }
+    });
+    useX = false;
     // the attic: rough vertical boards from floor to roof, stained and split
     PAPER.attic = canvasTex(256, 400, (c, W2, H2) => {
       c.fillStyle = "#0a0605"; c.fillRect(0, 0, W2, H2);
@@ -1531,6 +1562,163 @@
     g.userData.attic = { bulbPivot, bulbM, bulbLight, hooks, dust, reds };
   };
   // LET ME OUT, scratched into the boards again and again
+  // ------------------------------------------------------------------ the storage room
+  // Things kept on a shelf: little vials, round bottles, jars and small boxes, all slightly different.
+  const VIAL_COLORS = ["#b0483e", "#3f8f6a", "#4a6fb8", "#c79a3a", "#8a55b0", "#3a9aa6"];
+  function shelfClutter(parent, x0, x1, y, z) {
+    const cork = mat("#6a4a2a"), boxTones = ["#4a3524", "#5a4230", "#3d2c22", "#56483a", "#44303a"];
+    let x = x0 + 0.08;
+    while (x < x1 - 0.08) {
+      const kind = rnd(), zz = z + (rnd() - 0.5) * 0.06;
+      if (kind < 0.42) {                                              // a thin vial with a cork
+        const h = 0.13 + rnd() * 0.1, r = 0.024 + rnd() * 0.012, col = VIAL_COLORS[Math.floor(rnd() * VIAL_COLORS.length)];
+        const gm = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.22, roughness: 0.2, transparent: true, opacity: 0.9 });
+        cyl(r, r, h, gm, x, y + h / 2, zz, parent, 8); cyl(r * 0.7, r * 0.7, 0.03, cork, x, y + h + 0.015, zz, parent, 6);
+        x += r * 2 + 0.03 + rnd() * 0.04;
+      } else if (kind < 0.6) {                                        // a round-bellied bottle
+        const r = 0.045 + rnd() * 0.02, col = VIAL_COLORS[Math.floor(rnd() * VIAL_COLORS.length)];
+        const gm = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.2, roughness: 0.2, transparent: true, opacity: 0.9 });
+        const b = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), gm); b.position.set(x + r, y + r, zz); parent.add(b);
+        cyl(r * 0.3, r * 0.3, r * 0.9, gm, x + r, y + r * 2.2, zz, parent, 6); cyl(r * 0.36, r * 0.36, 0.025, cork, x + r, y + r * 2.7, zz, parent, 6);
+        x += r * 2 + 0.04 + rnd() * 0.04;
+      } else {                                                        // a small box, sometimes two stacked
+        const bw = 0.1 + rnd() * 0.1, bh = 0.06 + rnd() * 0.08, bm = mat(boxTones[Math.floor(rnd() * boxTones.length)]);
+        box(bw, bh, 0.12 + rnd() * 0.05, bm, x + bw / 2, y + bh / 2, zz, parent);
+        box(bw * 0.5, 0.012, 0.02, mat("#b9ac8c"), x + bw / 2, y + bh * 0.55, zz + 0.075, parent).castShadow = false;                 // paper label
+        if (rnd() < 0.35) { const bw2 = bw * 0.7, bh2 = 0.05 + rnd() * 0.04; box(bw2, bh2, 0.1, mat(boxTones[Math.floor(rnd() * boxTones.length)]), x + bw / 2, y + bh + bh2 / 2, zz, parent); }
+        x += bw + 0.03 + rnd() * 0.04;
+      }
+    }
+  }
+  // two wall shelves, one above the other, crowded with vials and boxes
+  BUILD.vial_shelf = (g, w, d, o) => {
+    const Wd = (o && o.width) || 2.4;
+    for (const y of [0, 0.62]) {
+      box(Wd, 0.05, 0.26, M.darkWood, 0, y, 0.14, g);
+      for (const sx of [-1, 1]) box(0.05, 0.16, 0.2, M.darkWood, sx * (Wd / 2 - 0.12), y - 0.1, 0.11, g);
+      if (y) shelfClutter(g, -Wd / 2 + 0.26, Wd / 2, y + 0.025, 0.14);
+      else { shelfClutter(g, -Wd / 2, 0.18, y + 0.025, 0.14); shelfClutter(g, 1.0, Wd / 2, y + 0.025, 0.14); }   // a gap for the rack
+    }
+    // The puzzle: a little rack with three vials of exactly the same shape. Only their color tells them apart.
+    box(0.72, 0.035, 0.2, M.wood, 0.59, 0.045, 0.14, g); box(0.72, 0.1, 0.02, M.wood, 0.59, 0.1, 0.05, g);
+    const pv = [];
+    for (const [id, col] of [["red", "#d8483c"], ["green", "#3fb862"], ["purple", "#9258e0"]]) {
+      const V = new THREE.Group(); g.add(V);
+      const gm = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.45, roughness: 0.2, transparent: true, opacity: 0.92 });
+      cyl(0.05, 0.05, 0.3, gm, 0, 0.15, 0, V, 10); cyl(0.036, 0.036, 0.04, mat("#6a4a2a"), 0, 0.32, 0, V, 8);
+      V.position.set(0.59, 0.065, 0.15); pv.push({ id, V });
+    }
+    g.userData.puzzleVials = pv;
+    candle(g, -Wd / 2 + 0.13, 0.62 + 0.025, 0.14);                     // a single candle at the end of the top shelf
+  };
+  // a tall run of open shelving against a side wall
+  BUILD.storage_shelves = (g, w, d, o) => {
+    const L = (o && o.width) || 4, H = 2.25, D = 0.42;
+    box(L, H, 0.03, mat("#1c120c"), 0, H / 2, 0.02, g);
+    for (const x of [-L / 2, -L / 6, L / 6, L / 2]) box(0.07, H, D, M.darkWood, x, H / 2, D / 2, g);
+    for (const y of [0.08, 0.6, 1.12, 1.64, H - 0.03]) {
+      box(L, 0.05, D, M.wood, 0, y, D / 2, g);
+      if (y < H - 0.1) for (const [a, b2] of [[-L / 2, -L / 6], [-L / 6, L / 6], [L / 6, L / 2]]) shelfClutter(g, a + 0.04, b2 - 0.04, y + 0.025, D / 2 + 0.02);
+    }
+  };
+  // a whole wall of pigeonholes, every one stuffed with rolled-up skill scrolls
+  BUILD.scroll_rack = (g, w, d, o) => {
+    const L = (o && o.width) || 5, H = 2.3, D = 0.34, cols = Math.round(L / 0.5), rows = 5, cw = L / cols, ch = (H - 0.1) / rows;
+    box(L, H, 0.03, mat("#1c120c"), 0, H / 2 + 0.05, 0.02, g);
+    for (let r = 0; r <= rows; r++) box(L + 0.06, 0.045, D, M.darkWood, 0, 0.07 + r * ch, D / 2, g);
+    for (let k = 0; k <= cols; k++) box(0.04, H - 0.1, D, M.darkWood, -L / 2 + k * cw, 0.07 + (H - 0.1) / 2, D / 2, g);
+    const parch = [mat("#d8c9a0"), mat("#cbb98a"), mat("#e2d6b4"), mat("#bfae84")], endM = mat("#8a744c");
+    const ribbons = ["#8a2a2a", "#2a6a4a", "#3a4a8a", "#8a6a2a", "#6a3a7a"].map((cc) => mat(cc));
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+      const n = 1 + Math.floor(rnd() * 3), x0 = -L / 2 + k * cw, y0 = 0.07 + r * ch + 0.025;
+      for (let i = 0; i < n; i++) {
+        const rad = 0.045 + rnd() * 0.018, len = D * (0.78 + rnd() * 0.16);
+        const sx = x0 + cw * (0.28 + 0.44 * (n === 1 ? 0.5 : i / (n - 1))) + (rnd() - 0.5) * 0.02, sy = y0 + rad + (i === 2 ? rad * 1.6 : 0);
+        const sc = cyl(rad, rad, len, parch[Math.floor(rnd() * parch.length)], sx, sy, len / 2 + 0.03, g, 10); sc.rotation.x = Math.PI / 2;
+        const cap = cyl(rad * 0.42, rad * 0.42, 0.012, endM, sx, sy, len + 0.036, g, 8); cap.rotation.x = Math.PI / 2; cap.castShadow = false;
+        if (rnd() < 0.7) { const rb = cyl(rad + 0.004, rad + 0.004, 0.035, ribbons[Math.floor(rnd() * ribbons.length)], sx, sy, len * 0.82, g, 10); rb.rotation.x = Math.PI / 2; rb.castShadow = false; }
+      }
+    }
+  };
+  // a wicker basket on the floor, heaped with spooky odds and ends
+  BUILD.spooky_basket = (g) => {
+    const wick = mat("#7a5a30"), wickDk = mat("#4e3a1e"), bone = mat("#d8d0bc"), dark = mat("#0c0810");
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.27, 0.36, 14, 1, true), new THREE.MeshStandardMaterial({ color: "#7a5a30", roughness: 0.95, side: THREE.DoubleSide, flatShading: true }));
+    body.position.y = 0.18; body.castShadow = true; g.add(body);
+    cyl(0.27, 0.27, 0.03, wickDk, 0, 0.015, 0, g, 14);
+    for (const [y, r] of [[0.36, 0.365], [0.24, 0.335], [0.12, 0.305]]) { const band = new THREE.Mesh(new THREE.TorusGeometry(r, 0.018, 5, 18), y > 0.3 ? wick : wickDk); band.rotation.x = Math.PI / 2; band.position.y = y; g.add(band); }
+    for (const sx of [-1, 1]) { const h = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.016, 5, 10, Math.PI), wickDk); h.position.set(sx * 0.37, 0.33, 0); h.rotation.y = Math.PI / 2; g.add(h); }
+    cyl(0.33, 0.33, 0.02, dark, 0, 0.26, 0, g, 14).castShadow = false;                 // the dark inside
+    // a small skull
+    const sk = new THREE.Group(); sk.position.set(-0.08, 0.4, 0.06); sk.rotation.set(-0.3, 0.5, 0.15); g.add(sk);
+    const cr = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), bone); cr.scale.set(1, 0.95, 1.1); cr.castShadow = true; sk.add(cr);
+    box(0.11, 0.07, 0.09, bone, 0, -0.09, 0.05, sk);
+    for (const ex of [-0.04, 0.04]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), dark); e.position.set(ex, -0.01, 0.1); sk.add(e); }
+    box(0.02, 0.03, 0.02, dark, 0, -0.05, 0.11, sk);
+    // two bones sticking out
+    for (const [bx, bz, rz, rx] of [[0.16, -0.08, -0.5, 0.2], [0.05, -0.16, 0.35, -0.3]]) {
+      const B = new THREE.Group(); B.position.set(bx, 0.42, bz); B.rotation.set(rx, 0, rz); g.add(B);
+      cyl(0.018, 0.018, 0.34, bone, 0, 0, 0, B, 6);
+      for (const ey of [-0.17, 0.17]) for (const ex of [-0.02, 0.02]) { const k = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), bone); k.position.set(ex, ey, 0); B.add(k); }
+    }
+    // a glowing vial, a purple crystal, a black candle stub and a raven feather
+    cyl(0.03, 0.03, 0.16, new THREE.MeshStandardMaterial({ color: "#5fe08a", emissive: "#5fe08a", emissiveIntensity: 0.9, transparent: true, opacity: 0.9 }), 0.2, 0.42, 0.12, g, 8).rotation.z = -0.4;
+    const cry = new THREE.Mesh(new THREE.OctahedronGeometry(0.075), new THREE.MeshStandardMaterial({ color: "#9a5ae0", emissive: "#6a2ac0", emissiveIntensity: 0.6, roughness: 0.2, flatShading: true })); cry.scale.y = 1.6; cry.position.set(-0.2, 0.42, -0.1); cry.rotation.z = 0.3; g.add(cry);
+    cyl(0.035, 0.035, 0.12, mat("#17131c"), 0.02, 0.4, 0.2, g, 8);
+    const fe = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.34), new THREE.MeshStandardMaterial({ color: "#14121a", side: THREE.DoubleSide })); fe.position.set(-0.22, 0.52, 0.14); fe.rotation.set(0.2, 0.6, 0.5); g.add(fe);
+    // a spider on the rim
+    const sp = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), dark); sp.position.set(0.3, 0.39, -0.18); g.add(sp);
+    for (let k = 0; k < 8; k++) { const a2 = (k / 8) * Math.PI * 2; const leg = cyl(0.004, 0.004, 0.07, dark, 0.3 + Math.cos(a2) * 0.04, 0.385, -0.18 + Math.sin(a2) * 0.04, g, 3); leg.rotation.set(Math.sin(a2) * 1.1, 0, -Math.cos(a2) * 1.1); leg.castShadow = false; }
+  };
+  // a tall wooden cabinet with its two doors shut
+  BUILD.cabinet = (g, w, d, o) => {
+    const W2 = (o && o.width) || 1.1, H = 1.95, D = 0.5, dk = M.darkWood, wd = M.wood;
+    box(W2, H, D, dk, 0, H / 2 + 0.08, D / 2, g);                                     // carcass
+    box(W2 + 0.1, 0.1, D + 0.06, wd, 0, 0.05, D / 2, g);                               // plinth
+    box(W2 + 0.14, 0.08, D + 0.1, wd, 0, H + 0.12, D / 2, g); box(W2 + 0.06, 0.05, D + 0.04, dk, 0, H + 0.185, D / 2, g);   // cornice
+    for (const sx of [-1, 1]) {
+      const dx = sx * (W2 / 4 - 0.005), dw = W2 / 2 - 0.05;
+      box(dw, H - 0.16, 0.04, wd, dx, H / 2 + 0.08, D + 0.02, g);                       // door leaf
+      for (const [py, ph] of [[H * 0.7 + 0.08, H * 0.42], [H * 0.24 + 0.08, H * 0.3]]) {   // two recessed panels with a raised field
+        box(dw - 0.1, ph, 0.012, dk, dx, py, D + 0.042, g).castShadow = false;
+        box(dw - 0.2, ph - 0.1, 0.014, wd, dx, py, D + 0.05, g).castShadow = false;
+      }
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), M.brass); knob.position.set(sx * 0.05, H * 0.5 + 0.08, D + 0.07); g.add(knob);
+      for (const hy of [0.4, H - 0.25]) box(0.03, 0.12, 0.02, M.iron, sx * (W2 / 2 - 0.04), hy + 0.08, D + 0.045, g).castShadow = false;   // hinges
+    }
+    box(0.012, H - 0.16, 0.045, mat("#0c0705"), 0, H / 2 + 0.08, D + 0.02, g).castShadow = false;   // the dark seam where the doors meet
+  };
+  // two witch's brooms leaning in the corner: crooked handles and long, ragged twig heads bound with twine
+  BUILD.witch_brooms = (g) => {
+    const twine = mat("#2a1c10"), twigs = [mat("#8a6a34"), mat("#6e5226"), mat("#a07c3e"), mat("#5a4220")];
+    const broom = (bx, bz, leanBack, leanSide, hgt) => {
+      const B = new THREE.Group(); B.position.set(bx, 0, bz); B.rotation.set(-leanBack, 0, leanSide); g.add(B);
+      const pts = []; for (let k = 0; k <= 6; k++) { const u = k / 6; pts.push(new THREE.Vector3(Math.sin(u * 5 + bx * 9) * 0.07 * (0.3 + u), 0.46 + u * (hgt - 0.46), Math.cos(u * 4 + bx * 5) * 0.02)); }
+      const handle = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.032, 7), M.darkWood); handle.castShadow = true; B.add(handle);
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.034, 8, 6), M.darkWood); knob.position.copy(pts[6]); B.add(knob);
+      for (let i = 0; i < 44; i++) {                                    // the head: a ragged skirt of twigs, swept to one side
+        const a = (i / 44) * Math.PI * 2 * 2, spread = 0.12 + rnd() * 0.3, len = 0.5 + rnd() * 0.28;
+        const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.006, len, 4), twigs[Math.floor(rnd() * twigs.length)]);
+        tw.position.set(Math.cos(a) * spread * 0.5 + 0.05, 0.52 - len / 2, Math.sin(a) * spread * 0.5);
+        tw.rotation.set(Math.sin(a) * spread * -1.0, 0, Math.cos(a) * spread * 1.0 + 0.16); tw.castShadow = true; B.add(tw);
+      }
+      for (const [yy, rr] of [[0.5, 0.07], [0.42, 0.095]]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.012, 5, 12), twine); ring.rotation.x = Math.PI / 2; ring.position.y = yy; B.add(ring); }
+    };
+    broom(-0.22, -0.12, 0.16, 0.1, 2.0);
+    broom(0.2, -0.16, 0.14, -0.2, 1.85);
+  };
+  // room dressing in one piece (sits on the room's top-left tile): a film of dust over the floorboards
+  BUILD.storage_set = (g) => {
+    // one texture across the whole floor (no tiling, so no seams): soft drifts of dust with a scatter of specks
+    const dustTex = canvasTex(512, 400, (c, W2, H2) => {
+      c.clearRect(0, 0, W2, H2);
+      for (let i = 0; i < 150; i++) { const px = rnd() * W2, py = rnd() * H2, r = 16 + rnd() * 46; const gr = c.createRadialGradient(px, py, 2, px, py, r); gr.addColorStop(0, `rgba(170,162,148,${0.1 + rnd() * 0.12})`); gr.addColorStop(1, "rgba(170,162,148,0)"); c.fillStyle = gr; c.fillRect(px - r, py - r, r * 2, r * 2); }
+      for (let i = 0; i < 1600; i++) { c.fillStyle = `rgba(200,192,178,${rnd() * 0.12})`; c.fillRect(rnd() * W2, rnd() * H2, 1 + rnd() * 2, 1); }
+    });
+    dustTex.wrapS = dustTex.wrapT = THREE.ClampToEdgeWrapping;
+    const film = new THREE.Mesh(new THREE.PlaneGeometry(9, 7), new THREE.MeshBasicMaterial({ map: dustTex, transparent: true, opacity: 0.55, depthWrite: false }));
+    film.rotation.x = -Math.PI / 2; film.position.set(4, 0.012, 3); g.add(film);
+  };
   BUILD.attic_scratches = (g) => {
     const tex = scrawlTex((c, W2, H2) => {
       c.fillStyle = "#d8ccb8"; c.textAlign = "center";
@@ -2336,6 +2524,7 @@
   };
 
 
+  let grayNow = 0, grayCss = "";
   const objMeshes = []; // { o, group }
   // floor candles are drawn as standing candelabras pushed flush against the nearest back/side wall
   function nearestWall(tx, ty) {
@@ -2346,6 +2535,7 @@
     return best;
   }
   for (const o of OBJECTS) {
+    useX = !!o.extra;
     const key = o.sprite === "candle" && o.mount !== "wall" && !/^bed_candle/.test(o.id) ? "candelabra" : o.sprite;
     const w = o.size ? o.size[0] : o.w / TILE, d = o.size ? o.size[1] : o.h / TILE;
     const g = new THREE.Group();
@@ -2394,9 +2584,10 @@
     objMeshes.push({ o, group: g });
     if (o.light) {
       const lx = g.position.x + (key === "candelabra" ? Math.sin(g.rotation.y) * 0.3 : 0), lz = g.position.z + (o.mount === "wall" ? 0.4 : key === "candelabra" ? 0.3 : 0);
-      lightSources.push({ room: MAP.roomAt(o.x, o.mount === "wall" ? o.y + 1 : o.y), x: lx, y: o.mount === "wall" ? 1.6 : key === "candelabra" ? 1.9 : o.sprite === "jar_table" ? 1.9 : 0.6, z: lz, color: TINT[o.light.color] || TINT.warm, power: (o.light.r || 30) / 30, phase: rnd() * 10 });
+      lightSources.push({ room: MAP.roomAt(o.x, o.mount === "wall" ? o.y + 1 : o.y), x: lx + (o.lightDx || 0), y: o.lightY ? o.lightY : o.mount === "wall" ? 1.6 : key === "candelabra" ? 1.9 : o.sprite === "jar_table" ? 1.9 : 0.6, z: lz, color: TINT[o.light.color] || TINT.warm, power: (o.light.r || 30) / 30, phase: rnd() * 10 });
     }
   }
+  useX = false;
 
   // ------------------------------------------------------------------ doors
   // Every doorway has a real door. Each room shows the door on its own side;
@@ -2426,7 +2617,7 @@
   const doorWood = new THREE.MeshStandardMaterial({ map: doorWoodTex, roughness: 0.8 });
   // a faded, ashen version of the door wood for rooms that are finished
   const doorWoodGrey = canvasTex(256, 256, (c, W2, H2) => { c.filter = "grayscale(1) brightness(1.9) contrast(0.7)"; c.drawImage(doorWoodTex.image, 0, 0, W2, H2); });
-  function makeDoor(width, ghost) {
+  function makeDoor(width, ghost, plain) {      // plain: no handprints (the storage room door)
     const g = new THREE.Group();
     const wood = ghost ? new THREE.MeshStandardMaterial({ map: doorWoodTex, transparent: true, opacity: 0.28, depthWrite: false }) : doorWood.clone();
     g.userData.wood = wood;
@@ -2468,7 +2659,7 @@
       for (const [ax, ay] of lancet(half - 0.12)) pts.push(new THREE.Vector3(sx * ax, H - 0.15 + ay, 0.07));
       g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.03, 5), iron));
     }
-    if (!ghost) {  // handprints smeared across the leaves
+    if (!ghost && !plain) {  // handprints smeared across the leaves
       const hp = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.1, H - 0.4), new THREE.MeshBasicMaterial({ map: handTex, transparent: true, depthWrite: false }));
       hp.position.set(0, (H - 0.2) / 2, 0.062); g.add(hp); g.userData.hands = hp;
     }
@@ -2491,7 +2682,7 @@
   const corridor = (r) => r < 0 || /^(hallway|landing)$/.test(MAP.rooms[r].id);
   for (const d of DOORS) {
     if (d.A >= 0) { const dr = makeDoor(d.w, true); dr.position.set(d.cx, 0, d.y + 0.2); roomGroups[d.A].add(dr); dr.visible = false; ghostDoors.push({ dr, d }); if (d.B >= 0) doorMeshes.push({ dr, leadsTo: MAP.rooms[d.B].id }); }        // A's south wall: faint
-    if (d.B >= 0) { const dr = makeDoor(d.w, false); dr.position.set(d.cx, 0, d.y + d.h - 0.2); roomGroups[d.B].add(dr); if (d.A >= 0) doorMeshes.push({ dr, leadsTo: MAP.rooms[d.A].id }); } // B's north wall: solid
+    if (d.B >= 0) { const dr = makeDoor(d.w, false, MAP.rooms[d.B].id === "storage_room"); dr.position.set(d.cx, 0, d.y + d.h - 0.2); roomGroups[d.B].add(dr); if (d.A >= 0) doorMeshes.push({ dr, leadsTo: MAP.rooms[d.A].id }); } // B's north wall: solid
   }
   for (const d of DOORS) {
     if (d.B >= 0 && !corridor(d.B)) {                              // room below: plate hangs over the inside of its door
@@ -2944,6 +3135,13 @@
     lantern.intensity = 15 + Math.sin(t * 9) * Math.sin(t * 13.7) * 3;
 
     updateMarker(t); updateFog(t);
+    // the storage room is black and white until the vial puzzle is solved
+    {
+      const rm = MAP.rooms[shownRoom], want = rm && rm.id === "storage_room" && !S.flags.skillsDone ? 1 : 0;
+      grayNow += (want - grayNow) * Math.min(1, dt * 1.6);
+      const f = grayNow > 0.01 ? `grayscale(${Math.min(1, grayNow).toFixed(3)})` : "";
+      if (f !== grayCss) { grayCss = f; canvas.style.filter = f; }
+    }
     // the attic has its own mood: almost no fill light, brown-black fog, a weaker lantern
     {
       const atticNow = !!(MAP.rooms[shownRoom] && MAP.rooms[shownRoom].id === "attic");
@@ -3056,6 +3254,10 @@
         bk.seamM.opacity = pulled ? Math.max(0, 0.8 - k * 2) : 0.5 + 0.3 * Math.sin(t * 3);
         bk.niche.visible = k > 0.1; bk.boxGlow.intensity = bk.niche.visible ? 1.2 : 0;
         bk.lid.rotation.x += ((S.flags.boxOpen ? -1.7 : 0) - bk.lid.rotation.x) * Math.min(1, dt * 4);
+      }
+      if (group.userData.puzzleVials) {                                  // jumbled until the puzzle is solved, then in order
+        const order = S.flags.skillsDone ? ["red", "green", "purple"] : ["green", "purple", "red"];
+        for (const v of group.userData.puzzleVials) { const tx = 0.37 + order.indexOf(v.id) * 0.22; v.V.position.x += (tx - v.V.position.x) * Math.min(1, dt * 4); }
       }
       if (group.userData.wkey) { const wk = group.userData.wkey; wk.shown = wk.o.hidden ? 0 : Math.min(1, wk.shown + dt * 0.8);   // shimmers into view
         wk.K.scale.setScalar(0.2 + 0.8 * wk.shown); wk.K.position.y = (wk.o.mount === "wall" ? 0.35 : 1.25) + Math.sin(t * 2) * 0.05; wk.K.rotation.y = t * 1.2; wk.K.rotation.x = -0.3; }

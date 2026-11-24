@@ -1267,7 +1267,7 @@ function drawLoading() {
   if (window.WORLD3D_FAILED) {
     ctx.fillStyle = "#ff9a3c"; ctx.fillText("The manor couldn't load its 3D engine.", VIEW_W / 2, VIEW_H / 2 - 8);
     ctx.fillStyle = "#9b6dff"; ctx.fillText("Check your internet connection, then reload the page.", VIEW_W / 2, VIEW_H / 2 + 8);
-  } else {
+  } else if (performance.now() > 3000) {                // only on a slow load; a quick flash of text is just noise
     ctx.fillStyle = "#7bd389"; ctx.fillText("Lighting the candles" + ".".repeat(1 + Math.floor(S.time * 2) % 3), VIEW_W / 2, VIEW_H / 2);
   }
   ctx.textAlign = "left";
